@@ -96,6 +96,12 @@ const handleKeydown = (event) => {
   }
 }
 
+const temizle = () => {
+  lines.value = []
+  
+}
+
+
 // Component yüklendiğinde olay dinleyicilerini ekle
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
@@ -140,7 +146,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="w-1/4 mt-5">
+    <div class="w-1/4 my-5">
       <div class="flex flex-col gap-3 w-fit">
         <div class="flex flex-col">
           <label>eser seçiniz</label>
@@ -171,6 +177,9 @@ onUnmounted(() => {
         <div class="flex flex-col">
           çizgi kalınlığı
           <input type="range" min="1" max="50" v-model="cizgiGenisligi">
+        </div>
+        <div>
+          <button @click="temizle" class="bg-red-800 text-white p-2 rounded-lg">çizimleri temizle</button>
         </div>
       </div>
     </div>
