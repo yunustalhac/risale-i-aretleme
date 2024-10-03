@@ -33,7 +33,7 @@ const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
 const lines = ref([]) // Çizilen çizgilerin tutulduğu array
 const cizgiGenisligi = ref(25)
 
-const isDraw = ref(false)
+const isDraw = ref(true)
 let x1 = null
 let y1 = null
 const isDrawing = ref(false) // Çizim durumu
@@ -176,6 +176,7 @@ onUnmounted(() => {
         <div class="flex flex-col">
           çizgi kalınlığı
           <input type="range" min="1" max="50" v-model="cizgiGenisligi">
+          {{cizgiGenisligi}}
         </div>
         <div>
           <button @click="temizle" class="bg-red-800 text-white p-2 rounded-lg">çizimleri temizle</button>
