@@ -33,6 +33,7 @@ const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
 const lines = ref([]) // Çizilen çizgilerin tutulduğu array
 const cizgiGenisligi = ref(25)
 
+const isDraw = ref(false)
 let x1 = null
 let y1 = null
 const isDrawing = ref(false) // Çizim durumu
@@ -52,16 +53,21 @@ const git = (sayfa) => {
 
 // Çizim başlat
 const startDrawing = (event) => {
-  x1 = event.pageX
-  y1 = event.pageY
-  isDrawing.value = true
+  if (!isDraw.value) return; // Çizim kapalıysa çık
+  event.preventDefault(); // Varsayılan davranışı engelle
+  const touch = event.touches ? event.touches[0] : event; // Mobil veya masaüstü durumu
+  x1 = touch.pageX;
+  y1 = touch.pageY;
+  isDrawing.value = true;
 }
 
 // Çizim yap
 const draw = (event) => {
-  if (!isDrawing.value) return
-  const x2 = event.pageX
-  const y2 = event.pageY
+  if (!isDrawing.value) return; // Çizim yapma izni yoksa çık
+  event.preventDefault(); // Varsayılan davranışı engelle
+  const touch = event.touches ? event.touches[0] : event; // Mobil veya masaüstü durumu
+  const x2 = touch.pageX;
+  const y2 = touch.pageY;
 
   // Yeni bir çizgi ekle
   lines.value.push({
@@ -74,39 +80,50 @@ const draw = (event) => {
   })
 
   // Başlangıç noktalarını güncelle
-  x1 = x2
-  y1 = y2
+  x1 = x2;
+  y1 = y2;
 }
 
 // Çizimi durdur
 const stopDrawing = () => {
-  isDrawing.value = false
+  isDrawing.value = false;
 }
 
 // ESC tuşuna basıldığında çizgi işlemini iptal et
 const handleKeydown = (event) => {
   if (event.key === 'Escape' && isDrawing.value) {
-    stopDrawing()
+    stopDrawing();
   }
 }
 
 // Component yüklendiğinde olay dinleyicilerini ekle
 onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
+  window.addEventListener('keydown', handleKeydown);
 })
 
 // Component destroyed olduğunda olay dinleyicilerini kaldır
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('keydown', handleKeydown);
 })
 
 </script>
 
 <template>
   <div class="flex flex-col lg:flex-row ">
-    <div @mousedown="startDrawing" @mouseup="stopDrawing" @mousemove="draw" class="relative">
+    <div @touchstart="startDrawing" @touchend="stopDrawing" @touchmove="draw"
+         @mousedown="startDrawing" @mouseup="stopDrawing" @mousemove="draw" class="relative">
       <div class="">
         <div class="">
+          <button
+              class="fixed top-0 left-0 bg-blue-950 text-white p-2 z-50 rounded-lg"
+              @touchstart.prevent="isDraw = !isDraw"
+              @mousedown.prevent="isDraw = !isDraw"
+          >
+            <span v-if="isDraw">çizimi kapat</span>
+            <span v-else>çizimi aç</span>
+          </button>
+
+
           <div class="h-full w-full lg:w-[85%] relative">
             <div class="w-full h-full absolute">
               <svg class="w-full h-full">
@@ -114,7 +131,7 @@ onUnmounted(() => {
                 <line v-for="(line, index) in lines" :key="index"
                       :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2"
                       :stroke="line.color" :stroke-width="line.cizgiGenisligi" stroke-linecap="round"
-                      />
+                />
               </svg>
             </div>
             <img draggable="false" class="lg:h-full relative cursor-text border-2 border-black rounded-lg object-contain" v-for="item in 1" :key="item" :src="sayfaAc || defaultSayfa">
@@ -159,3 +176,9 @@ onUnmounted(() => {
     </div>
   </div>
 </template>
+
+<style>
+* {
+  user-select: none;
+}
+</style>
