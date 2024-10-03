@@ -27,7 +27,7 @@ const eserler = [
   "genclik-rehberi",
 ]
 const renkler = ["red", "yellow", "blue", "purple", "green", "lime", "orange", "gray", "cyan", "navy", "pink", "indigo", "maroon", "magenta", "teal", "brown", "silver", "gold", "aqua"]
-const eser = ref("")
+const eser = ref("lemalar")
 const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
 
 const lines = ref([]) // Çizilen çizgilerin tutulduğu array
@@ -130,6 +130,7 @@ const mouse = (X) => {
         <input class="border rounded-lg" type="text" placeholder="sayfa" v-model="sayfaSayi"
                @keydown.enter="git(sayfaSayi)">
       </div>
+      <button class=" border rounded-lg p-2 bg-slate-300 hover:bg-slate-400 hover:text-white" @click="git(sayfaSayi)">sayfaya git</button>
       <div class="flex flex-col">
         <span>renk seçiniz</span>
         <div class="flex gap-3">
