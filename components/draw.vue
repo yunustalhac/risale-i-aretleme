@@ -143,7 +143,7 @@ onUnmounted(() => {
         <div @click="click" class="">
           <div class="h-full w-[85%] relative">
             <div class="w-full h-full absolute">
-              <svg class="w-full h-full bg-amber-100">
+              <svg class="w-full h-full">
                 <!-- Çizilen tüm çizgileri döngüyle render et -->
                 <line v-for="(line, index) in lines" :key="index"
                       :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2"
