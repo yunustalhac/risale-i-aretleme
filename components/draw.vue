@@ -165,7 +165,7 @@ const mouse = (X) => {
                 <!-- Geçici çizgiyi çiz -->
                 <line v-if="tempLine"
                       :x1="tempLine.x1" :y1="tempLine.y1" :x2="tempLine.x2" :y2="tempLine.y2"
-                      stroke="#156790" :stroke-width="cizgiGenisligi" stroke-linecap="round"
+                      :stroke="secilenRenk" :stroke-width="cizgiGenisligi" stroke-linecap="round"
                       stroke-dasharray="5, 5" style="filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3))"/>
               </svg>
             </div>
