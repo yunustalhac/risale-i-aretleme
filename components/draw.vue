@@ -75,7 +75,7 @@ const draw = (event) => {
     y1: y1,
     x2: x2,
     y2: y2,
-    color: secilenRenk.value || '#c42f1f', // Rengi burada ekle
+    color: secilenRenk.value || "gold", // Rengi burada ekle
     cizgiGenisligi: cizgiGenisligi.value || "25px",
   })
 
@@ -166,7 +166,6 @@ onUnmounted(() => {
           <div class="flex gap-3">
             <select v-model="secilenRenk" class="border rounded-lg">
               <option disabled value="">renkler</option>
-              <option selected value="#c42f1f">bordo</option>
               <option v-for="renk in renkler" :key="renk" :value="renk" class="text-black p-2"
                       :style="{ background: renk }">{{ renk }}
               </option>
