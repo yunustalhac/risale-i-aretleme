@@ -26,7 +26,7 @@ const eserler = [
   "hanimlar-rehberi",
   "genclik-rehberi",
 ]
-const renkler = ["red", "yellow", "blue", "purple", "green", "lime", "orange", "gray", "cyan", "navy", "pink", "indigo", "maroon", "magenta", "teal", "brown", "silver", "gold", "aqua"]
+const renkler = ["red", "yellow", "blue", "purple", "green", "lime", "orange", "gray", "cyan", "navy", "pink", "indigo", "maroon", "magenta", "teal", "brown", "silver", "gold"]
 const eser = ref("lemalar")
 const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
 
