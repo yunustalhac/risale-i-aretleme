@@ -1,6 +1,7 @@
 <script setup>
 import {ref, onMounted} from 'vue'
 
+
 const route = useRoute()
 const router = useRouter()
 
@@ -15,17 +16,16 @@ const eserler = [
 const sideBar = ref(false)
 
 const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
-await router.push({query: {eser: "mektubat", sayfa: 1}});
 
 const eser = ref(route.query.eser)
 const sayfaSayi = ref(route.query.sayfa)
 const sayfaAc = ref(0)
 
-const renkler = ["red", "yellow", "blue", "purple", "green", "lime", "orange", "gray", "cyan", "navy", "pink", "indigo", "maroon", "magenta", "teal", "brown", "silver", "gold"]
+const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cyan", "pink",  "maroon", "magenta", "teal", "brown", "silver", "gold"]
 const secilenRenk = ref("")
+const cizgiGenisligi = ref()
 
 const lines = ref([])
-const cizgiGenisligi = ref(25)
 const isDraw = ref(true)
 const isDrawing = ref(false)
 let x1 = null
@@ -34,7 +34,7 @@ let y1 = null
 // LocalStorage anahtarı oluşturma (eser ve sayfa bazlı)
 const localStorageKey = () => `${eser.value}-${sayfaSayi.value}-lines`
 
-const git = async (sayfa) => {
+const git = async () => {
   const loadingIndicator = useLoadingIndicator();
   loadingIndicator.start(); // Yükleme çubuğunu başlat
 
@@ -101,14 +101,30 @@ const temizle = () => {
   localStorage.removeItem(localStorageKey());
 }
 
+watch(sayfaSayi, (newVal) => {
+  if (newVal) {
+    git(); // Sayfa numarası değiştiğinde sayfayı getir
+  }
+});
+
 onMounted(() => {
   git()
 });
+
+const move = (event) => {
+  const cursor = document.getElementById("circularcursor");
+  const cursorSize = cursor.offsetWidth / 2;  // Çemberin yarıçapı
+  cursor.style.left = event.clientX - cursorSize + "px";
+  cursor.style.top = event.clientY - cursorSize + "px";
+};
+
 </script>
 
 <template>
+  <div id="circularcursor"></div>
+
   <NuxtLoadingIndicator height="8"/>
-  <div class="flex flex-col">
+  <div  @mousemove="move" class="flex flex-col">
 
     <div @touchstart="startDrawing" @touchend="stopDrawing" @touchmove="draw"
          @mousedown="startDrawing" @mouseup="stopDrawing" @mousemove="draw" class="relative">
@@ -125,7 +141,8 @@ onMounted(() => {
               </svg>
             </div>
             <img draggable="false"
-                 class="lg:h-full relative cursor-text border-2 border-black rounded-lg object-contain"
+
+                 class="lg:h-full relative border-2 border-black rounded-lg object-contain"
                  :src="sayfaAc||defaultSayfa">
           </div>
         </div>
@@ -137,7 +154,8 @@ onMounted(() => {
           <div class="w-full flex gap-5">
             <div class="flex flex-col w-full">
               <label class="font-semibold">Eser Seçiniz</label>
-              <select v-model="eser" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <select @mouseout="router.push({query: {eser: eser, sayfa: sayfaSayi}})&&git()" v-model="eser"
+                      class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option disabled value="">Eser seçiniz</option>
                 <option v-for="eser in eserler" :key="eser" :value="eser">{{ eser }}</option>
               </select>
@@ -146,7 +164,7 @@ onMounted(() => {
             <div class="flex flex-col w-full">
               <label class="font-semibold">Sayfa Seçiniz</label>
               <input class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" type="text"
-                     placeholder="sayfa" v-model="sayfaSayi" @keydown.enter="git(sayfaSayi)">
+                     placeholder="sayfa" v-model="sayfaSayi">
             </div>
           </div>
 
@@ -158,20 +176,20 @@ onMounted(() => {
                 <option disabled value="">Renkler</option>
                 <option v-for="renk in renkler" :key="renk" :value="renk" class="text-black p-2" :style="{ background: renk }">{{ renk }}</option>
               </select>
-              <span :style="{ background: secilenRenk||'gold' }" class="p-4 rounded-full border"></span>
+              <span :style="{background: secilenRenk||'gold' ,height:[cizgiGenisligi+'px']}" class="rounded-full border w-5"></span>
             </div>
           </div>
 
           <div class="flex flex-col gap-2 w-full">
             <span class="font-semibold">Çizgi Kalınlığı</span>
-            <input type="range" min="1" max="50" v-model="cizgiGenisligi" class="slider">
+            <input type="range" min="5" max="50" v-model="cizgiGenisligi" class="slider">
             <span>{{ cizgiGenisligi }}</span>
           </div>
 
           <div class="flex w-full gap-1">
             <div class="w-full">
               <button class="border rounded-lg p-2 bg-blue-600 text-white hover:bg-blue-700 transition duration-300"
-                      @click="git(sayfaSayi)">Sayfaya Git
+                      @click="git()">Sayfaya Git
               </button>
             </div>
 
@@ -184,7 +202,7 @@ onMounted(() => {
 
             <div class="w-full">
               <button
-                  class="cursor-pointer bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition duration-300"
+                  class=" bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition duration-300"
                   @touchstart.prevent="isDraw = !isDraw" @mousedown.prevent="isDraw = !isDraw">
                 <span v-if="isDraw">Çizimi Kapat</span>
                 <span v-else>Çizimi Aç</span>
@@ -194,7 +212,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="flex justify-center">
-        <button @click="sideBar = !sideBar" class="lg:p-3 bg-white shadow-black shadow-sm rounded-lg">kontrol paneli
+        <button @click="sideBar = !sideBar" class="lg:p-3 bg-white shadow-black shadow-sm rounded-lg ">kontrol paneli
         </button>
       </div>
     </div>
@@ -202,6 +220,27 @@ onMounted(() => {
 </template>
 
 <style>
+
+* {
+  cursor: none;
+}
+
+button{
+  cursor: none;
+}
+
+#circularcursor {
+  background-color: transparent;
+  border: 1px solid black;
+  height: 25px;
+  width: 25px;
+  border-radius: 50%;
+  position: fixed;
+  z-index: 1000; /* Kaybolmasını önlemek için yüksek bir z-index ver */
+  pointer-events: none; /* Tıklamaların bu elemana gelmesini engeller */
+}
+
+
 @keyframes animate {
   0% {
     opacity: 0;
@@ -213,6 +252,9 @@ onMounted(() => {
   }
 }
 
+*{
+  user-select: none;
+}
 .sideAnimation {
   animation: animate 0.5s ease-in-out;
 }
@@ -227,13 +269,15 @@ onMounted(() => {
 }
 
 .slider::-webkit-slider-thumb {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   -webkit-appearance: none;
   appearance: none;
   width: 20px;
   height: 20px;
   border-radius: 50%;
   background: #4f46e5; /* Modern bir mavi tonu */
-  cursor: pointer;
 }
 
 </style>
