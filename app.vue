@@ -4,7 +4,9 @@ import Draw from "~/components/draw.vue";
 </script>
 
 <template>
+
   <div >
+
 <draw/>
 
   </div>

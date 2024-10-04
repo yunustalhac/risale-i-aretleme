@@ -32,8 +32,12 @@ let y1 = null
 const localStorageKey = () => `${eser.value}-${sayfaSayi.value}-lines`
 
 const git = async (sayfa) => {
+  const loadingIndicator = useLoadingIndicator();
+  loadingIndicator.start(); // Yükleme çubuğunu başlat
+
   await router.push({query: {eser: eser.value, sayfa: sayfaSayi.value}});
 
+  // Sayfa resim URL'sini ayarlama
   if (sayfaSayi.value.length < 2) {
     sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/00${route.query.sayfa}.png`
   } else if (sayfaSayi.value.length < 3) {
@@ -43,7 +47,12 @@ const git = async (sayfa) => {
   }
 
   const storedLines = localStorage.getItem(localStorageKey())
-  lines.value = storedLines ? JSON.parse(storedLines) : []
+  lines.value = storedLines ? JSON.parse(storedLines) : [];
+
+  // Yükleme çubuğunu durdur
+  setTimeout(() => {
+    loadingIndicator.finish();
+  }, 1500); // 300ms sonra yükleme çubuğunu durdur
 }
 
 const startDrawing = (event) => {
@@ -95,7 +104,9 @@ onMounted(() => {
 </script>
 
 <template>
+  <NuxtLoadingIndicator height="8"/>
   <div class="flex flex-col">
+
     <div @touchstart="startDrawing" @touchend="stopDrawing" @touchmove="draw"
          @mousedown="startDrawing" @mouseup="stopDrawing" @mousemove="draw" class="relative">
       <div class="">
@@ -118,9 +129,9 @@ onMounted(() => {
       </div>
     </div>
     <div class="fixed top-0 w-full sideAnimation">
-      <div v-if="sideBar" class="p-4 bg-white shadow-lg rounded-lg transition-all sideAnimation  mx-auto">
-        <div class="flex justify-around items-center gap-4">
-          <div class="flex flex-col">
+      <div v-if="sideBar" class="p-4 bg-white shadow-lg rounded-lg transition-all sideAnimation mx-auto">
+        <div class="flex flex-col lg:flex-row lg:justify-between items-center gap-x-10 gap-y-5">
+          <div class="flex flex-col w-full">
             <label class="font-semibold">Eser Seçiniz</label>
             <select v-model="eser" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option disabled value="">Eser seçiniz</option>
@@ -128,44 +139,57 @@ onMounted(() => {
             </select>
           </div>
 
-          <div class="flex flex-col">
+          <div class="flex flex-col w-full">
             <label class="font-semibold">Sayfa Seçiniz</label>
             <input class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" type="text" placeholder="sayfa" v-model="sayfaSayi" @keydown.enter="git(sayfaSayi)">
           </div>
 
-          <button class="border rounded-lg p-2 bg-blue-600 text-white hover:bg-blue-700 transition duration-300" @click="git(sayfaSayi)">Sayfaya Git</button>
 
-          <div class="flex flex-col">
+          <div class="flex flex-col w-full">
             <span class="font-semibold">Renk Seçiniz</span>
-            <div class="flex gap-2">
-              <select v-model="secilenRenk" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex gap-2 ">
+              <select v-model="secilenRenk" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
                 <option disabled value="">Renkler</option>
                 <option v-for="renk in renkler" :key="renk" :value="renk" class="text-black p-2" :style="{ background: renk }">{{ renk }}</option>
               </select>
-              <span :style="{ background: secilenRenk }" class="p-4 rounded-full border"></span>
+              <span :style="{ background: secilenRenk||'gold' }" class="p-4 rounded-full border"></span>
             </div>
           </div>
 
-          <div class="flex flex-col">
+          <div class="flex flex-col gap-2 w-full">
             <span class="font-semibold">Çizgi Kalınlığı</span>
             <input type="range" min="1" max="50" v-model="cizgiGenisligi" class="slider">
             <span>{{ cizgiGenisligi }}</span>
           </div>
 
-          <div>
-            <button @click="temizle" class="bg-red-600 text-white p-2 rounded-lg hover:bg-red-700 transition duration-300">Çizimleri Temizle</button>
-          </div>
+          <div class="flex w-full gap-1">
+            <div class="w-full">
+              <button class="border rounded-lg p-2 bg-blue-600 text-white hover:bg-blue-700 transition duration-300"
+                      @click="git(sayfaSayi)">Sayfaya Git
+              </button>
+            </div>
 
-          <div>
-            <button class="cursor-pointer bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition duration-300" @touchstart.prevent="isDraw = !isDraw" @mousedown.prevent="isDraw = !isDraw">
-              <span v-if="isDraw">Çizimi Kapat</span>
-              <span v-else>Çizimi Aç</span>
-            </button>
+            <div class="w-full">
+              <button @click="temizle"
+                      class="bg-red-600 text-white p-2 rounded-lg hover:bg-red-700 transition duration-300">Çizimleri
+                Temizle
+              </button>
+            </div>
+
+            <div class="w-full">
+              <button
+                  class="cursor-pointer bg-green-600 text-white p-2 rounded-lg hover:bg-green-700 transition duration-300"
+                  @touchstart.prevent="isDraw = !isDraw" @mousedown.prevent="isDraw = !isDraw">
+                <span v-if="isDraw">Çizimi Kapat</span>
+                <span v-else>Çizimi Aç</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="flex justify-center ">
-        <button @click="sideBar = !sideBar" class="p-3 bg-white shadow-black shadow-sm">kontrol paneli</button>
+      <div class="flex justify-center">
+        <button @click="sideBar = !sideBar" class="lg:p-3 bg-white shadow-black shadow-sm rounded-lg">kontrol paneli
+        </button>
       </div>
     </div>
   </div>
