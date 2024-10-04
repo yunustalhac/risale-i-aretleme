@@ -14,6 +14,9 @@ const eserler = [
 
 const sideBar = ref(false)
 
+const defaultSayfa = `https://oku.risale.online/images/risale/mektubat/001.png`
+await router.push({query: {eser: "mektubat", sayfa: 1}});
+
 const eser = ref(route.query.eser)
 const sayfaSayi = ref(route.query.sayfa)
 const sayfaAc = ref(0)
@@ -123,7 +126,7 @@ onMounted(() => {
             </div>
             <img draggable="false"
                  class="lg:h-full relative cursor-text border-2 border-black rounded-lg object-contain"
-                 :src="sayfaAc">
+                 :src="sayfaAc||defaultSayfa">
           </div>
         </div>
       </div>
