@@ -60,7 +60,6 @@ const git = async (sayfa) => {
 
 const startDrawing = (event) => {
   if (!isDraw.value) return;
-  event.preventDefault();
   const touch = event.touches ? event.touches[0] : event;
   x1 = touch.pageX;
   y1 = touch.pageY;
@@ -69,7 +68,6 @@ const startDrawing = (event) => {
 
 const draw = (event) => {
   if (!isDrawing.value) return;
-  event.preventDefault();
   const touch = event.touches ? event.touches[0] : event;
   const x2 = touch.pageX;
   const y2 = touch.pageY;
@@ -131,20 +129,23 @@ onMounted(() => {
         </div>
       </div>
     </div>
-    <div class="fixed top-0 w-full sideAnimation">
-      <div v-if="sideBar" class="p-4 bg-white shadow-lg rounded-lg transition-all sideAnimation mx-auto">
+    <div class="fixed top-0 w-full sideAnimation overflow-scroll h-full ">
+      <div v-if="sideBar" class="p-4 bg-white shadow-lg rounded-lg transition-all sideAnimation mx-auto ">
         <div class="flex flex-col lg:flex-row lg:justify-between items-center gap-x-10 gap-y-5">
-          <div class="flex flex-col w-full">
-            <label class="font-semibold">Eser Seçiniz</label>
-            <select v-model="eser" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option disabled value="">Eser seçiniz</option>
-              <option v-for="eser in eserler" :key="eser" :value="eser">{{ eser }}</option>
-            </select>
-          </div>
+          <div class="w-full flex gap-5">
+            <div class="flex flex-col w-full">
+              <label class="font-semibold">Eser Seçiniz</label>
+              <select v-model="eser" class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option disabled value="">Eser seçiniz</option>
+                <option v-for="eser in eserler" :key="eser" :value="eser">{{ eser }}</option>
+              </select>
+            </div>
 
-          <div class="flex flex-col w-full">
-            <label class="font-semibold">Sayfa Seçiniz</label>
-            <input class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" type="text" placeholder="sayfa" v-model="sayfaSayi" @keydown.enter="git(sayfaSayi)">
+            <div class="flex flex-col w-full">
+              <label class="font-semibold">Sayfa Seçiniz</label>
+              <input class="border rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" type="text"
+                     placeholder="sayfa" v-model="sayfaSayi" @keydown.enter="git(sayfaSayi)">
+            </div>
           </div>
 
 
