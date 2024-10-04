@@ -60,6 +60,7 @@ const git = async (sayfa) => {
 
 const startDrawing = (event) => {
   if (!isDraw.value) return;
+  event.preventDefault();
   const touch = event.touches ? event.touches[0] : event;
   x1 = touch.pageX;
   y1 = touch.pageY;
@@ -68,6 +69,7 @@ const startDrawing = (event) => {
 
 const draw = (event) => {
   if (!isDrawing.value) return;
+  event.preventDefault();
   const touch = event.touches ? event.touches[0] : event;
   const x2 = touch.pageX;
   const y2 = touch.pageY;
