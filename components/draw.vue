@@ -129,7 +129,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
-    <div class="fixed top-0 w-full sideAnimation overflow-scroll h-full ">
+    <div class="fixed top-0 w-full sideAnimation overflow-scroll h-full lg:h-fit">
       <div v-if="sideBar" class="p-4 bg-white shadow-lg rounded-lg transition-all sideAnimation mx-auto ">
         <div class="flex flex-col lg:flex-row lg:justify-between items-center gap-x-10 gap-y-5">
           <div class="w-full flex gap-5">
