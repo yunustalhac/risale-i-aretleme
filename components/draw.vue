@@ -23,7 +23,7 @@ const sayfaAc = ref(0)
 
 const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cyan", "pink",  "maroon", "magenta", "teal", "brown", "silver", "gold"]
 const secilenRenk = ref("")
-const cizgiGenisligi = ref()
+const cizgiGenisligi = ref(25)
 
 const lines = ref([])
 const isDraw = ref(true)
@@ -69,12 +69,14 @@ const startDrawing = (event) => {
 
 const draw = (event) => {
   if (!isDrawing.value) return;
+  const lineId = Date.now(); // Benzersiz bir kimlik
   event.preventDefault();
   const touch = event.touches ? event.touches[0] : event;
   const x2 = touch.pageX;
   const y2 = touch.pageY;
 
   lines.value.push({
+    id: lineId, // Her çizgiye benzersiz bir id ver
     x1: x1,
     y1: y1,
     x2: x2,
@@ -84,6 +86,7 @@ const draw = (event) => {
     eserim: route.query.eser,
     sayfam: route.query.sayfa,
   });
+
 
   // Çizimleri localStorage'a kaydet
   localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
@@ -111,6 +114,13 @@ onMounted(() => {
   git()
 });
 
+const sil = (lineId) => {
+  console.log("Silinmeye çalışılan ID:", lineId);
+  lines.value = lines.value.filter(line => line.id !== lineId);
+  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value)); // Güncellenmiş çizgileri localStorage'a kaydet
+};
+
+
 const move = (event) => {
   const cursor = document.getElementById("circularcursor");
   const cursorSize = cursor.offsetWidth / 2;  // Çemberin yarıçapı
@@ -121,7 +131,7 @@ const move = (event) => {
 </script>
 
 <template>
-  <div id="circularcursor"></div>
+  <div class="hidden lg:block" :style="{height:[cizgiGenisligi+'px']||'25px',width:[cizgiGenisligi+'px']||'25px'}" id="circularcursor"></div>
 
   <NuxtLoadingIndicator height="8"/>
   <div  @mousemove="move" class="flex flex-col">
@@ -135,10 +145,18 @@ const move = (event) => {
           <div class="h-full w-full relative">
             <div class="w-full h-full absolute">
               <svg class="w-full h-full">
-                <line v-for="(line, index) in lines" :key="index"
-                      :x1="line.x1" :y1="line.y1" :x2="line.x2" :y2="line.y2"
-                      :stroke="line.color" :stroke-width="line.cizgiGenisligi" stroke-linecap="round"/>
+                <g>
+                  <line v-for="line in lines" :key="line.id" @click="sil(line.id)"
+                        :x1="line.x1"
+                        :y1="line.y1"
+                        :x2="line.x2"
+                        :y2="line.y2"
+                        :stroke="line.color"
+                        :stroke-width="line.cizgiGenisligi"
+                        stroke-linecap="round"/>
+                </g>
               </svg>
+
             </div>
             <img draggable="false"
 
@@ -231,9 +249,7 @@ button{
 
 #circularcursor {
   background-color: transparent;
-  border: 1px solid black;
-  height: 25px;
-  width: 25px;
+  border: 2px solid black;
   border-radius: 50%;
   position: fixed;
   z-index: 1000; /* Kaybolmasını önlemek için yüksek bir z-index ver */
@@ -279,5 +295,11 @@ button{
   border-radius: 50%;
   background: #4f46e5; /* Modern bir mavi tonu */
 }
+
+line:hover {
+  stroke-opacity: 0.5; /* Üzerine gelindiğinde opasiteyi değiştir */
+  cursor: pointer; /* Tıklanabilir göstermek için */
+}
+
 
 </style>
