@@ -65,46 +65,9 @@ const git = async () => {
     loadingIndicator.finish();
   }, 1500); // 300ms sonra yükleme çubuğunu durdur
   ert()
-  
+
 }
 
-
-const startDrawing = (event) => {
-  if (!isDraw.value) return;
-  event.preventDefault();
-  const touch = event.touches ? event.touches[0] : event;
-  x1 = touch.pageX;
-  y1 = touch.pageY;
-  isDrawing.value = true;
-}
-
-const draw = (event) => {
-  if (!isDrawing.value) return;
-  const lineId = Date.now(); // Benzersiz bir kimlik
-  event.preventDefault();
-  const touch = event.touches ? event.touches[0] : event;
-  const x2 = touch.pageX;
-  const y2 = touch.pageY;
-
-  lines.value.push({
-    id: lineId, // Her çizgiye benzersiz bir id ver
-    x1: x1,
-    y1: y1,
-    x2: x2,
-    y2: y2,
-    color: secilenRenk.value || "gold",
-    cizgiGenisligi: cizgiGenisligi.value || "25px",
-    eserim: route.query.eser,
-    sayfam: route.query.sayfa,
-  });
-
-
-  // Çizimleri localStorage'a kaydet
-  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
-
-  x1 = x2;
-  y1 = y2;
-}
 
 const ert = () => {
   if (route.query.eser === 'genclik-rehberi' && "hanimlar-rehberi" && "bes-risale") {
@@ -112,9 +75,6 @@ const ert = () => {
   }
 }
 
-const stopDrawing = () => {
-  isDrawing.value = false;
-}
 
 const temizle = () => {
   lines.value = [];
@@ -148,17 +108,90 @@ const move = (event) => {
   cursor.style.top = event.clientY - cursorSize + "px";
 };
 
+let isPenActive = false;
+
+const startDrawing = (event) => {
+  if (!isDraw.value) return;
+
+  // Sadece kalemle çizim için kontrol
+  if (event.pointerType !== 'pen') return;
+
+  event.preventDefault();
+  const rect = event.target.getBoundingClientRect();
+  x1 = event.clientX - rect.left;
+  y1 = event.clientY - rect.top;
+  isDrawing.value = true;
+  isPenActive = true;
+}
+
+const draw = (event) => {
+  if (!isDrawing.value || !isPenActive) return;
+
+  // Sadece kalem hareketlerini işle
+  if (event.pointerType !== 'pen') return;
+
+  event.preventDefault();
+  const rect = event.target.getBoundingClientRect();
+  const x2 = event.clientX - rect.left;
+  const y2 = event.clientY - rect.top;
+
+  lines.value.push({
+    id: Date.now(),
+    x1: x1,
+    y1: y1,
+    x2: x2,
+    y2: y2,
+    color: secilenRenk.value || "gold",
+    cizgiGenisligi: cizgiGenisligi.value || "25px",
+    eserim: route.query.eser,
+    sayfam: route.query.sayfa,
+  });
+
+  // LocalStorage güncelleme
+  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
+
+  x1 = x2;
+  y1 = y2;
+}
+
+const stopDrawing = () => {
+  isDrawing.value = false;
+  isPenActive = false;
+}
+
+const requestRef = ref();
+
+const animate = () => {
+  // Çizim animasyonları burada
+  requestRef.value = requestAnimationFrame(animate);
+};
+
+onMounted(() => {
+  animate();
+});
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(requestRef.value);
+});
+
+if (isPenActive) {
+  img.style.overflow = 'hidden'
+}
 
 </script>
 
 <template>
+
   <div class="hidden lg:block" :style="{height:[cizgiGenisligi+'px']||'25px',width:[cizgiGenisligi+'px']||'25px'}" id="circularcursor"></div>
-
-  <NuxtLoadingIndicator height="8"/>
+  <!--  <NuxtLoadingIndicator height="8"/>-->
   <div  @mousemove="move" class="flex flex-col">
+  <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue"></div>
 
-    <div @touchstart="startDrawing" @touchend="stopDrawing" @touchmove="draw"
-         @mousedown="startDrawing" @mouseup="stopDrawing" @mousemove="draw" class="relative">
+    <div @pointerdown="startDrawing"
+         @pointerup="stopDrawing"
+         @pointermove="draw"
+         @pointercancel="stopDrawing"
+         class="relative touch-none overflow-scroll">
       <div class="">
         <div>
 
@@ -216,13 +249,13 @@ const move = (event) => {
           <div class="space-y-2">
             <label class="block text-sm font-medium text-gray-700">Renk</label>
             <div class="flex items-center gap-2">
-              <select v-model="secilenRenk" 
+              <select v-model="secilenRenk"
                       class="flex-1 border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
                 <option disabled value="">Renk seçiniz</option>
-                <option v-for="renk in renkler" :key="renk" :value="renk" 
+                <option v-for="renk in renkler" :key="renk" :value="renk"
                         class="p-2" :style="{ background: renk }">{{ renk }}</option>
               </select>
-              <div :style="{background: secilenRenk||'gold', height:'30px', width:'30px'}" 
+              <div :style="{background: secilenRenk||'gold', height:'30px', width:'30px'}"
                    class="rounded-full border shadow-sm"></div>
             </div>
           </div>
@@ -231,7 +264,7 @@ const move = (event) => {
           <div class="space-y-2">
             <label class="block text-sm font-medium text-gray-700">Çizgi Kalınlığı</label>
             <div class="space-y-2">
-              <input type="range" min="5" max="50" v-model="cizgiGenisligi" 
+              <input type="range" min="5" max="50" v-model="cizgiGenisligi"
                      class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
               <div class="text-sm text-gray-600 text-center">{{ cizgiGenisligi }}px</div>
             </div>
@@ -248,7 +281,7 @@ const move = (event) => {
             </button>
 
             <button @click="temizle"
-                    class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
+                    class="flex-1 bg-red-500 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
               <span class="flex items-center justify-center gap-2">
                 <i class="fas fa-trash"></i>
                 Çizimleri Temizle
@@ -266,7 +299,7 @@ const move = (event) => {
         </div>
       </div>
       <div class="flex justify-center mt-2">
-        <button @click="sideBar = !sideBar" 
+        <button @click="sideBar = !sideBar"
                 class="bg-white hover:bg-gray-50 text-gray-800 font-medium py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
           {{ sideBar ? 'Kontrol Panelini Gizle' : 'Kontrol Panelini Göster' }}
         </button>
@@ -339,5 +372,27 @@ line:hover {
   cursor: pointer; /* Tıklanabilir göstermek için */
 }
 
+/* Dokunma davranışını engelleme */
+img {
+  touch-action: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
 
+/* Kalem için optimize cursor */
+#circularcursor {
+  display: none; /* Tablette cursor'ı gizle */
+}
+
+/* Tablet için optimize edilmiş çizim alanı */
+@media (pointer: coarse) {
+  .touch-none {
+    touch-action: none;
+    -webkit-touch-callout: none;
+  }
+
+  line {
+    pointer-events: none;
+  }
+}
 </style>

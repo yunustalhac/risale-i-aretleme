@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">benim-risalem</string>
+    <string name="title_activity_main">benim-risalem</string>
+    <string name="package_name">com.risalem.app</string>
+    <string name="custom_url_scheme">com.risalem.app</string>
+</resources>
