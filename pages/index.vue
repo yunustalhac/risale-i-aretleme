@@ -25,7 +25,7 @@ const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cy
 // Reactive Değişkenler
 // -----------------------
 const sideBar = ref(false)
-const eser = ref(route.query.eser)
+const eser = ref(route.query.eser||"mektubat")
 const sayfaNo = ref(route.query.sayfa||1)
 const sayfaAc = ref()
 
@@ -174,11 +174,13 @@ const animate = () => {
 // -----------------------
 // Watchers ve Lifecycle Hooks
 // -----------------------
-watch(sayfaNo, (newVal) => {
-  if (newVal) {
-    git(); // Sayfa numarası değiştiğinde sayfayı getir
+watch([sayfaNo, eser], ([newSayfaNo, newEser]) => {
+  // Her iki değer de değiştiğinde veya her biri değiştiğinde burası tetiklenecek
+  if (newSayfaNo && newEser) {
+    git(); // sayfa veya eser değiştiğinde git() fonksiyonu çalıştırılır
   }
 });
+
 
 onMounted(() => {
   animate();
@@ -263,12 +265,12 @@ if (isPenActive) {
               <div class="relative">
                 <button @click="eserListesi = !eserListesi"
                         class="w-full border border-gray-300 rounded-lg p-2.5 text-left">
-                  {{ route.query.eser }}
+                  {{ eser  }}
                 </button>
                 <div v-if="eserListesi"
                      class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-md overflow-y-auto max-h-32">
                   <button v-for="e in eserler" :key="e"
-                          @click="router.push({query: {eser: e}}), eserListesi = false"
+                          @click="eser=e, eserListesi = false"
                           class="w-full text-left py-2 px-3 hover:bg-gray-100">
                     {{ e }}
                   </button>

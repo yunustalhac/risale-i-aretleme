@@ -1,61 +1,85 @@
 <script setup>
-import {ref, onMounted} from 'vue'
+import {ref, onMounted, watch, onBeforeUnmount} from 'vue'
+import {useRoute, useRouter} from '#imports'
 
-
+// -----------------------
+// Router ve Route
+// -----------------------
 const route = useRoute()
 const router = useRouter()
 
+// -----------------------
+// Sabitler ve Listeler
+// -----------------------
 const eserler = [
   "lemalar", "sozler", "sualar", "mektubat", "siracun-nur", "zulfikar",
   "asa-yi-musa", "tilsimlar", "isaratul-i-caz", "mesnevi-i-nuriye",
   "sikke-i-tasdik-i-gaybi", "barla-lahikasi", "kastamonu-lahikasi",
-  "emirdag-lahikasi-1", "emirdag-lahikasi-2", "emirdag-lahikasi-3",
-  "emirdag-lahikasi-4", "bes-risale", "hanimlar-rehberi", "genclik-rehberi"
+  "emirdag-lahikasi-1", "emirdag-lahikasi-2", "emirdag-lahikasi-3", "emirdag-lahikasi-4",
+  "bes-risale", "hanimlar-rehberi", "genclik-rehberi"
 ]
 
+const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cyan", "pink", "maroon", "magenta", "teal", "brown", "silver", "gold"]
 
+// -----------------------
+// Reactive Değişkenler
+// -----------------------
 const sideBar = ref(false)
-
-
 const eser = ref(route.query.eser)
-const sayfaSayi = ref(route.query.sayfa)
-const sayfaAc = ref(0)
+const sayfaNo = ref(route.query.sayfa||1)
+const sayfaAc = ref()
 
-
-const defaultSayfa = () => {
-  router.push({query: {eser: 'mektubat', sayfa: 1}})
-  return `https://oku.risale.online/images/risale/mektubat/001.png`
-}
-
-
-const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cyan", "pink",  "maroon", "magenta", "teal", "brown", "silver", "gold"]
 const secilenRenk = ref("")
 const cizgiGenisligi = ref(25)
-
 const lines = ref([])
 const isDraw = ref(true)
 const isDrawing = ref(false)
 let x1 = null
 let y1 = null
 
+const eserListesi = ref(false)
+
+let isPenActive = false
+const requestRef = ref()
+
+// -----------------------
+// Yardımcı Fonksiyonlar
+// -----------------------
+
 // LocalStorage anahtarı oluşturma (eser ve sayfa bazlı)
-const localStorageKey = () => `${eser.value}-${sayfaSayi.value}-lines`
+const localStorageKey = () => `${eser.value}-${sayfaNo.value}-lines`
 
+// Varsayılan sayfa url'si oluşturma
+const defaultSayfa = async () => {
+  let eserVal = route.query.eser || "mektubat";
+  let sayfaVal = route.query.sayfa || 1;
+
+  // Eğer eksikse, URL parametrelerini güncelle
+  if (!route.query.eser || !route.query.sayfa) {
+    await router.push({ query: { eser: eserVal, sayfa: sayfaVal } });
+  }
+
+  // Sayfa numarasını 3 basamaklı yapmak için:
+  const paddedSayfa = String(sayfaVal).padStart(3, '0');
+  sayfaAc.value = `https://oku.risale.online/images/risale/${eserVal}/${paddedSayfa}.png`;
+
+  return sayfaAc.value;
+}
+
+
+// Resim URL'sini ayarlayan ve sayfayı güncelleyen fonksiyon
 const git = async () => {
-
   const loadingIndicator = useLoadingIndicator();
   loadingIndicator.start(); // Yükleme çubuğunu başlat
 
-  await router.push({query: {eser: eser.value, sayfa: sayfaSayi.value}});
+
+  await router.push({query: {eser: eser.value, sayfa: sayfaNo.value}});
 
   // Sayfa resim URL'sini ayarlama
-  if (sayfaSayi.value.length < 2) {
-    sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/00${route.query.sayfa}.png`
-  } else if (sayfaSayi.value.length < 3) {
-    sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/0${route.query.sayfa}.png`
-  } else {
-    sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/${route.query.sayfa}.png`
-  }
+
+  const paddedSayfa = String(sayfaNo.value).padStart(3, '0');
+  sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/${paddedSayfa}.png`;
+
 
   const storedLines = localStorage.getItem(localStorageKey())
   lines.value = storedLines ? JSON.parse(storedLines) : [];
@@ -63,53 +87,34 @@ const git = async () => {
   // Yükleme çubuğunu durdur
   setTimeout(() => {
     loadingIndicator.finish();
-  }, 1500); // 300ms sonra yükleme çubuğunu durdur
-  ert()
-
+  }, 1500);
 }
 
-
-const ert = () => {
-  if (route.query.eser === 'genclik-rehberi' && "hanimlar-rehberi" && "bes-risale") {
-    console.log(route.query.eser)
-  }
-}
-
-
+// Çizimleri temizleyen fonksiyon
 const temizle = () => {
   lines.value = [];
   localStorage.removeItem(localStorageKey());
 }
 
-watch(sayfaSayi, (newVal) => {
-  if (newVal) {
-    git(); // Sayfa numarası değiştiğinde sayfayı getir
-  }
-});
-
-onMounted(() => {
-
-
-  git()
-
-});
-
+// Belirtilen çizgi ID'sine göre silme işlemi
 const sil = (lineId) => {
   console.log("Silinmeye çalışılan ID:", lineId);
   lines.value = lines.value.filter(line => line.id !== lineId);
-  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value)); // Güncellenmiş çizgileri localStorage'a kaydet
-};
+  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
+}
 
-
+// Özel cursor hareketlerini güncelleyen fonksiyon
 const move = (event) => {
   const cursor = document.getElementById("circularcursor");
   const cursorSize = cursor.offsetWidth / 2;  // Çemberin yarıçapı
   cursor.style.left = event.clientX - cursorSize + "px";
   cursor.style.top = event.clientY - cursorSize + "px";
-};
+}
+// -----------------------
+// Çizim İşlemleri (Pointer Eventleri)
+// -----------------------
 
-let isPenActive = false;
-
+// Çizime başlama fonksiyonu
 const startDrawing = (event) => {
   if (!isDraw.value) return;
 
@@ -124,6 +129,7 @@ const startDrawing = (event) => {
   isPenActive = true;
 }
 
+// Çizim esnasında çalışacak fonksiyon
 const draw = (event) => {
   if (!isDrawing.value || !isPenActive) return;
 
@@ -154,38 +160,55 @@ const draw = (event) => {
   y1 = y2;
 }
 
+// Çizim işlemini sonlandırma fonksiyonu
 const stopDrawing = () => {
   isDrawing.value = false;
   isPenActive = false;
 }
 
-const requestRef = ref();
-
+// Animasyon döngüsü
 const animate = () => {
-  // Çizim animasyonları burada
   requestRef.value = requestAnimationFrame(animate);
-};
+}
+
+// -----------------------
+// Watchers ve Lifecycle Hooks
+// -----------------------
+watch(sayfaNo, (newVal) => {
+  if (newVal) {
+    git(); // Sayfa numarası değiştiğinde sayfayı getir
+  }
+});
 
 onMounted(() => {
   animate();
+  git();
+  defaultSayfa()
+
+
 });
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(requestRef.value);
 });
 
+// Pen aktifken, img etiketine overflow değişikliği
 if (isPenActive) {
-  img.style.overflow = 'hidden'
+  const img = document.querySelector('img'); // img etiketini seç
+  if (img) { // img bulunursa overflow'u değiştir
+    img.style.overflow = 'hidden';
+  }
 }
-
 </script>
+
 
 <template>
 
-  <div class="hidden lg:block" :style="{height:[cizgiGenisligi+'px']||'25px',width:[cizgiGenisligi+'px']||'25px'}" id="circularcursor"></div>
+  <div class="hidden lg:block" :style="{height:[cizgiGenisligi+'px']||'25px',width:[cizgiGenisligi+'px']||'25px'}"
+       id="circularcursor"></div>
   <!--  <NuxtLoadingIndicator height="8"/>-->
-  <div  @mousemove="move" class="flex flex-col">
-  <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue"></div>
+  <div class="flex flex-col">
+    <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue"></div>
 
     <div @pointerdown="startDrawing"
          @pointerup="stopDrawing"
@@ -215,94 +238,82 @@ if (isPenActive) {
 
             </div>
             <img draggable="false"
-
                  class="lg:h-full relative border-2 border-black rounded-lg object-contain"
-                 :src="sayfaAc||defaultSayfa()">
+                 :src="sayfaAc" alt="">
           </div>
         </div>
       </div>
     </div>
     <div class="fixed top-0 w-full sideAnimation overflow-scroll h-fit">
-      <div v-if="sideBar" class="p-6 bg-white shadow-xl rounded-xl transition-all sideAnimation mx-auto max-w-6xl m-4">
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <!-- Eser ve Sayfa Seçimi -->
-          <div class="space-y-4 col-span-2">
-            <div class="flex gap-4">
-              <div class="flex-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Eser</label>
-                <select @mouseout="router.push({query: {eser: eser, sayfa: sayfaSayi}})&&git()" v-model="eser"
-                        class="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
-                  <option disabled value="">Eser seçiniz</option>
-                  <option v-for="eser in eserler" :key="eser" :value="eser">{{ eser }}</option>
-                </select>
-              </div>
-
-              <div class="flex-1">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Sayfa</label>
-                <input class="w-full border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                       type="text" placeholder="Sayfa numarası giriniz" v-model="sayfaSayi">
-              </div>
-            </div>
+      <div class="fixed left-0 top-0 h-screen flex flex-col">
+        <div @mousemove="sideBar=true" class="w-[30px] h-full absolute left-0 top-0"></div>
+        <div v-if="sideBar"
+             @mouseleave="sideBar=false"
+             class="p-4 bg-white shadow-xl rounded-r-xl transition-all duration-300 ease-in-out w-64 flex flex-col flex-grow">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Kontrol Paneli</h2>
+            <button @click="sideBar = false" class="text-gray-500 hover:text-gray-700">
+              <i class="fas fa-times"></i>
+            </button>
           </div>
 
-          <!-- Renk Seçimi -->
-          <div class="space-y-2">
-            <label class="block text-sm font-medium text-gray-700">Renk</label>
-            <div class="flex items-center gap-2">
-              <select v-model="secilenRenk"
-                      class="flex-1 border border-gray-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors">
-                <option disabled value="">Renk seçiniz</option>
-                <option v-for="renk in renkler" :key="renk" :value="renk"
-                        class="p-2" :style="{ background: renk }">{{ renk }}</option>
-              </select>
-              <div :style="{background: secilenRenk||'gold', height:'30px', width:'30px'}"
-                   class="rounded-full border shadow-sm"></div>
+          <div class="space-y-3 flex-grow">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Eser</label>
+              <div class="relative">
+                <button @click="eserListesi = !eserListesi"
+                        class="w-full border border-gray-300 rounded-lg p-2.5 text-left">
+                  {{ route.query.eser }}
+                </button>
+                <div v-if="eserListesi"
+                     class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-md overflow-y-auto max-h-32">
+                  <button v-for="e in eserler" :key="e"
+                          @click="router.push({query: {eser: e}}), eserListesi = false"
+                          class="w-full text-left py-2 px-3 hover:bg-gray-100">
+                    {{ e }}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <!-- Çizgi Kalınlığı -->
-          <div class="space-y-2">
-            <label class="block text-sm font-medium text-gray-700">Çizgi Kalınlığı</label>
-            <div class="space-y-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Sayfa</label>
+              <input type="number" v-model="sayfaNo" class="w-full border border-gray-300 rounded-lg p-2.5"
+                     placeholder="Sayfa No">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Renk</label>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="renk in renkler" :key="renk" @click="secilenRenk = renk"
+                        :style="{ background: renk, height:'30px', width:'30px', borderRadius: '4px' }"
+                        :class="{'border-4 border-white': secilenRenk === renk, 'border border-gray-300': secilenRenk !== renk}"></button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Çizgi Kalınlığı</label>
               <input type="range" min="5" max="50" v-model="cizgiGenisligi"
                      class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
               <div class="text-sm text-gray-600 text-center">{{ cizgiGenisligi }}px</div>
             </div>
-          </div>
 
-          <!-- Butonlar -->
-          <div class="col-span-full flex gap-4 mt-4">
-            <button class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105"
-                    @click="git()">
-              <span class="flex items-center justify-center gap-2">
-                <i class="fas fa-arrow-right"></i>
-                Sayfaya Git
-              </span>
-            </button>
-
-            <button @click="temizle"
-                    class="flex-1 bg-red-500 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105">
-              <span class="flex items-center justify-center gap-2">
-                <i class="fas fa-trash"></i>
-                Çizimleri Temizle
-              </span>
-            </button>
-
-            <button class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105"
-                    @touchstart.prevent="isDraw = !isDraw" @mousedown.prevent="isDraw = !isDraw">
-              <span class="flex items-center justify-center gap-2">
-                <i class="fas fa-pencil-alt"></i>
-                {{ isDraw ? 'Çizimi Kapat' : 'Çizimi Aç' }}
-              </span>
-            </button>
+            <div class="flex flex-col gap-2">
+              <button @click="git()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg">
+                <i class="fas fa-arrow-right mr-2"></i> Git
+              </button>
+              <button @click="temizle()"
+                      class="bg-red-500 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg">
+                <i class="fas fa-trash mr-2"></i> Temizle
+              </button>
+              <button @click="isDraw = !isDraw"
+                      class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
+                <i class="fas fa-pencil-alt mr-2"></i> {{ isDraw ? 'Çizimi Kapat' : 'Çizimi Aç' }}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="flex justify-center mt-2">
-        <button @click="sideBar = !sideBar"
-                class="bg-white hover:bg-gray-50 text-gray-800 font-medium py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105">
-          {{ sideBar ? 'Kontrol Panelini Gizle' : 'Kontrol Panelini Göster' }}
-        </button>
+
       </div>
     </div>
   </div>
@@ -314,7 +325,7 @@ if (isPenActive) {
   cursor: none;
 }
 
-button{
+button {
   cursor: none;
 }
 
@@ -339,33 +350,14 @@ button{
   }
 }
 
-*{
+* {
   user-select: none;
 }
+
 .sideAnimation {
   animation: animate 0.5s ease-in-out;
 }
 
-.slider {
-  -webkit-appearance: none;
-  width: 100%;
-  height: 6px;
-  border-radius: 5px;
-  background: #ddd;
-  outline: none;
-}
-
-.slider::-webkit-slider-thumb {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #4f46e5; /* Modern bir mavi tonu */
-}
 
 line:hover {
   stroke-opacity: 0.5; /* Üzerine gelindiğinde opasiteyi değiştir */
@@ -396,5 +388,4 @@ img {
   }
 }
 </style>
-
 
