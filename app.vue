@@ -1,18 +1,14 @@
 <script setup>
 
-import Draw from "~/components/draw.vue";
 </script>
 
 <template>
 
   <div >
 
-<draw/>
-
+    <nuxt-layout>
+      <nuxt-page/>
+    </nuxt-layout>
   </div>
 
 </template>
-
-<style lang="scss" scoped>
-
-</style>
