@@ -1,145 +1,148 @@
 <script setup>
-import {ref, onMounted, watch, onBeforeUnmount} from 'vue'
-import {useRoute, useRouter} from '#imports'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter } from '#imports'
 
-// -----------------------
-// Router ve Route
-// -----------------------
+// ------------------------------------------------
+// Router, Route ve API'den Veri Çekme
+// ------------------------------------------------
 const route = useRoute()
 const router = useRouter()
+const { data, error } = await useFetch('/api/data')
 
-// -----------------------
-// Sabitler ve Listeler
-// -----------------------
-const eserler = [
-  "lemalar", "sozler", "sualar", "mektubat", "siracun-nur", "zulfikar",
-  "asa-yi-musa", "tilsimlar", "isaratul-i-caz", "mesnevi-i-nuriye",
-  "sikke-i-tasdik-i-gaybi", "barla-lahikasi", "kastamonu-lahikasi",
-  "emirdag-lahikasi-1", "emirdag-lahikasi-2", "emirdag-lahikasi-3", "emirdag-lahikasi-4",
-  "bes-risale", "hanimlar-rehberi", "genclik-rehberi"
+// ------------------------------------------------
+// Sabitler ve Reactive Değişkenler
+// ------------------------------------------------
+const renkler = [
+  "black", "red", "yellow", "blue", "green", "lime",
+  "orange", "gray", "cyan", "pink", "maroon", "magenta",
+  "teal", "brown", "silver", "gold"
 ]
 
-const renkler = ["red", "yellow", "blue", "green", "lime", "orange", "gray", "cyan", "pink", "maroon", "magenta", "teal", "brown", "silver", "gold"]
-
-// -----------------------
-// Reactive Değişkenler
-// -----------------------
+const controlPanel = ref(false)
 const sideBar = ref(false)
-const eser = ref(route.query.eser||"mektubat")
-const sayfaNo = ref(route.query.sayfa||1)
-const sayfaAc = ref()
 
-const secilenRenk = ref("")
-const cizgiGenisligi = ref(25)
+const eser = ref(route.query.eser || "mektubat")
+
+// Maksimum sayfa değerlerini tanımlayın:
+const maxPages = {
+  "sozler": 379,
+  "lemalar": 419,
+  "sualar": 628,
+  "mektubat": 515,
+  "siracun-nur": 309,
+  "zulfikar": 375,
+  "asa-yi-musa": 318,
+  "tilsimlar": 164,
+  "isaratul-i-caz": 284,
+  "mesnevi-i-nuriye": 294,
+  "sikke-i-tasdik-i-gaybi": 248,
+  "barla-lahikasi": 368,
+  "kastamonu-lahikasi": 343,
+  "emirdag-lahikasi-1": 464,
+  "emirdag-lahikasi-2": 475,
+  "emirdag-lahikasi-3": 460,
+  "emirdag-lahikasi-4": 562,
+  "bes-risale": 95,
+  "hanimlar-rehberi": 162,
+  "genclik-rehberi": 84
+}
+
+// Sayfa numarasını, minimum 1 olacak şekilde ayarla:
+const _sayfaNo = ref(Math.max(1, Number(route.query.sayfa) || 1));
+
+// Computed property kullanarak setter'da değeri sınırla:
+const sayfaNo = computed({
+  get() {
+    return _sayfaNo.value;
+  },
+  set(value) {
+    // Seçili esere ait maksimum sayfa değeri; eğer bulunamazsa Infinity kullanılır.
+    const maxPage = maxPages[eser.value] || Infinity;
+    // Değeri 1 ile maxPage arasında sınırla:
+    _sayfaNo.value = Math.max(1, Math.min(maxPage, value));
+  }
+});
+
+const sayfaAc = ref("")
+
+const secilenRenk = ref("gold")
+const cizgiGenisligi = ref(7)
 const lines = ref([])
 const isDraw = ref(true)
 const isDrawing = ref(false)
 let x1 = null
 let y1 = null
 
-const eserListesi = ref(false)
-
+const isDelete = ref(false)
 let isPenActive = false
 const requestRef = ref()
 
-// -----------------------
-// Yardımcı Fonksiyonlar
-// -----------------------
+// Sidebar ve Eser Listesi ile ilgili reactive değişkenler
+const eserListesi = ref(false)
+const bolumListesiBool = ref(false)
+const maddeVeri = ref([])
+const selectedEserIndex = ref(null)
+const selectedMadde = ref(null)
+const openEserIndices = ref([])
 
-// LocalStorage anahtarı oluşturma (eser ve sayfa bazlı)
+// ------------------------------------------------
+// Yardımcı Fonksiyonlar
+// ------------------------------------------------
 const localStorageKey = () => `${eser.value}-${sayfaNo.value}-lines`
 
-// Varsayılan sayfa url'si oluşturma
 const defaultSayfa = async () => {
-  let eserVal = route.query.eser || "mektubat";
-  let sayfaVal = route.query.sayfa || 1;
+  const eserVal = route.query.eser || "mektubat"
+  const sayfaVal = route.query.sayfa || 1
 
-  // Eğer eksikse, URL parametrelerini güncelle
   if (!route.query.eser || !route.query.sayfa) {
-    await router.push({ query: { eser: eserVal, sayfa: sayfaVal } });
+    await router.push({ query: { eser: eserVal, sayfa: sayfaVal } })
   }
 
-  // Sayfa numarasını 3 basamaklı yapmak için:
-  const paddedSayfa = String(sayfaVal).padStart(3, '0');
-  sayfaAc.value = `https://oku.risale.online/images/risale/${eserVal}/${paddedSayfa}.png`;
-
-  return sayfaAc.value;
+  const paddedSayfa = String(sayfaVal).padStart(3, '0')
+  sayfaAc.value = `https://oku.risale.online/images/risale/${eserVal}/${paddedSayfa}.png`
+  return sayfaAc.value
 }
 
-
-// Resim URL'sini ayarlayan ve sayfayı güncelleyen fonksiyon
 const git = async () => {
-  const loadingIndicator = useLoadingIndicator();
-  loadingIndicator.start(); // Yükleme çubuğunu başlat
+  const loadingIndicator = useLoadingIndicator()
+  loadingIndicator.start()
 
-
-  await router.push({query: {eser: eser.value, sayfa: sayfaNo.value}});
-
-  // Sayfa resim URL'sini ayarlama
-
-  const paddedSayfa = String(sayfaNo.value).padStart(3, '0');
-  sayfaAc.value = `https://oku.risale.online/images/risale/${route.query.eser}/${paddedSayfa}.png`;
-
+  await router.push({ query: { eser: eser.value, sayfa: sayfaNo.value } })
+  const paddedSayfa = String(sayfaNo.value).padStart(3, '0')
+  sayfaAc.value = `https://oku.risale.online/images/risale/${eser.value}/${paddedSayfa}.png`
 
   const storedLines = localStorage.getItem(localStorageKey())
-  lines.value = storedLines ? JSON.parse(storedLines) : [];
+  lines.value = storedLines ? JSON.parse(storedLines) : []
 
-  // Yükleme çubuğunu durdur
-  setTimeout(() => {
-    loadingIndicator.finish();
-  }, 1500);
+  setTimeout(() => loadingIndicator.finish(), 1500)
 }
 
-// Çizimleri temizleyen fonksiyon
 const temizle = () => {
-  lines.value = [];
-  localStorage.removeItem(localStorageKey());
+  lines.value = []
+  localStorage.removeItem(localStorageKey())
 }
 
-// Belirtilen çizgi ID'sine göre silme işlemi
-const sil = (lineId) => {
-  console.log("Silinmeye çalışılan ID:", lineId);
-  lines.value = lines.value.filter(line => line.id !== lineId);
-  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
-}
-
-// Özel cursor hareketlerini güncelleyen fonksiyon
-const move = (event) => {
-  const cursor = document.getElementById("circularcursor");
-  const cursorSize = cursor.offsetWidth / 2;  // Çemberin yarıçapı
-  cursor.style.left = event.clientX - cursorSize + "px";
-  cursor.style.top = event.clientY - cursorSize + "px";
-}
-// -----------------------
-// Çizim İşlemleri (Pointer Eventleri)
-// -----------------------
-
-// Çizime başlama fonksiyonu
+// ------------------------------------------------
+// Çizim ve Silme İşlemleri
+// ------------------------------------------------
 const startDrawing = (event) => {
-  if (!isDraw.value) return;
+  if (!isDraw.value || event.pointerType !== 'pen') return
 
-  // Sadece kalemle çizim için kontrol
-  if (event.pointerType !== 'pen') return;
-
-  event.preventDefault();
-  const rect = event.target.getBoundingClientRect();
-  x1 = event.clientX - rect.left;
-  y1 = event.clientY - rect.top;
-  isDrawing.value = true;
-  isPenActive = true;
+  event.preventDefault()
+  const rect = event.target.getBoundingClientRect()
+  x1 = event.clientX - rect.left
+  y1 = event.clientY - rect.top
+  isDrawing.value = true
+  isPenActive = true
 }
 
-// Çizim esnasında çalışacak fonksiyon
 const draw = (event) => {
-  if (!isDrawing.value || !isPenActive) return;
+  if (isDelete.value || !isDrawing.value || !isPenActive || event.pointerType !== 'pen') return
 
-  // Sadece kalem hareketlerini işle
-  if (event.pointerType !== 'pen') return;
-
-  event.preventDefault();
-  const rect = event.target.getBoundingClientRect();
-  const x2 = event.clientX - rect.left;
-  const y2 = event.clientY - rect.top;
+  event.preventDefault()
+  const rect = event.target.getBoundingClientRect()
+  const x2 = event.clientX - rect.left
+  const y2 = event.clientY - rect.top
 
   lines.value.push({
     id: Date.now(),
@@ -147,247 +150,363 @@ const draw = (event) => {
     y1: y1,
     x2: x2,
     y2: y2,
-    color: secilenRenk.value || "gold",
-    cizgiGenisligi: cizgiGenisligi.value || "25px",
-    eserim: route.query.eser,
-    sayfam: route.query.sayfa,
-  });
+    color: secilenRenk.value,
+    cizgiGenisligi: cizgiGenisligi.value,
+    eserim: eser.value,
+    sayfam: sayfaNo.value
+  })
 
-  // LocalStorage güncelleme
-  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value));
-
-  x1 = x2;
-  y1 = y2;
+  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value))
+  x1 = x2
+  y1 = y2
 }
 
-// Çizim işlemini sonlandırma fonksiyonu
 const stopDrawing = () => {
-  isDrawing.value = false;
-  isPenActive = false;
+  isDrawing.value = false
+  isPenActive = false
 }
 
-// Animasyon döngüsü
-const animate = () => {
-  requestRef.value = requestAnimationFrame(animate);
+const deleteLine = (event) => {
+  if (!isDelete.value || event.pointerType !== 'pen') return
+
+  const rect = event.target.getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+
+  const closestLine = lines.value.find(line => {
+    const distanceStart = Math.hypot(line.x1 - x, line.y1 - y)
+    const distanceEnd = Math.hypot(line.x2 - x, line.y2 - y)
+    return Math.min(distanceStart, distanceEnd) < cizgiGenisligi.value * 2
+  })
+
+  if (closestLine) {
+    lines.value = lines.value.filter(line => line.id !== closestLine.id)
+    localStorage.setItem(localStorageKey(), JSON.stringify(lines.value))
+  }
 }
 
-// -----------------------
-// Watchers ve Lifecycle Hooks
-// -----------------------
-watch([sayfaNo, eser], ([newSayfaNo, newEser]) => {
-  // Her iki değer de değiştiğinde veya her biri değiştiğinde burası tetiklenecek
-  if (newSayfaNo && newEser) {
-    git(); // sayfa veya eser değiştiğinde git() fonksiyonu çalıştırılır
+// ------------------------------------------------
+// Eser ve Bölüm Seçim Fonksiyonları
+// ------------------------------------------------
+function handleEserClick(item, index) {
+  selectedEserIndex.value = index
+  bolumSec(true, item)
+}
+
+function bolumSec(bool, item) {
+  bolumListesiBool.value = bool
+  maddeVeri.value = item.madde || []
+}
+
+function toggleEser(index) {
+  if (openEserIndices.value.includes(index)) {
+    openEserIndices.value = openEserIndices.value.filter(i => i !== index)
+  } else {
+    openEserIndices.value.push(index)
+  }
+}
+
+// ------------------------------------------------
+// Eser değişiminde sayfa numarasını kontrol et
+// ------------------------------------------------
+watch(eser, (newEser) => {
+  const maxPage = maxPages[newEser] || Infinity;
+  if (_sayfaNo.value > maxPage) {
+    _sayfaNo.value = maxPage;
   }
 });
 
+// ------------------------------------------------
+// Watcher'lar ve Lifecycle Hook'lar
+// ------------------------------------------------
+watch([sayfaNo], () => git())
+
+watch(isDelete, (newVal) => {
+  isDraw.value = !newVal
+})
 
 onMounted(() => {
-  animate();
-  git();
+  git()
   defaultSayfa()
-
-
-});
+})
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(requestRef.value);
-});
-
-// Pen aktifken, img etiketine overflow değişikliği
-if (isPenActive) {
-  const img = document.querySelector('img'); // img etiketini seç
-  if (img) { // img bulunursa overflow'u değiştir
-    img.style.overflow = 'hidden';
-  }
-}
+  if (requestRef.value) cancelAnimationFrame(requestRef.value)
+})
 </script>
 
 
 <template>
-
-  <div class="hidden lg:block" :style="{height:[cizgiGenisligi+'px']||'25px',width:[cizgiGenisligi+'px']||'25px'}"
-       id="circularcursor"></div>
-  <!--  <NuxtLoadingIndicator height="8"/>-->
   <div class="flex flex-col">
+    <!-- Üstteki Örnek Blok -->
     <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue"></div>
+    <NuxtLoadingIndicator height="4" class="rounded-full"/>
 
-    <div @pointerdown="startDrawing"
-         @pointerup="stopDrawing"
-         @pointermove="draw"
-         @pointercancel="stopDrawing"
-         class="relative touch-none overflow-scroll">
-      <div class="">
-        <div>
-
-
-          <div class="h-full w-full relative">
-            <div class="w-full h-full absolute"
-            >
-              <svg class="w-full h-full"
-              >
-                <g>
-                  <line v-for="line in lines" :key="line.id" @click="sil(line.id)"
-                        :x1="line.x1"
-                        :y1="line.y1"
-                        :x2="line.x2"
-                        :y2="line.y2"
-                        :stroke="line.color"
-                        :stroke-width="line.cizgiGenisligi"
-                        stroke-linecap="round"/>
-                </g>
-              </svg>
-
-            </div>
-            <img draggable="false"
-                 class="lg:h-full relative border-2 border-black rounded-lg object-contain"
-                 :src="sayfaAc" alt="">
-          </div>
+    <!-- Çizim Alanı -->
+    <div
+        @pointerdown="isDelete ? deleteLine($event) : startDrawing($event)"
+        @pointerup="stopDrawing"
+        @pointermove="isDelete ? deleteLine($event) : draw($event)"
+        @pointercancel="stopDrawing"
+        class="relative touch-none overflow-scroll"
+    >
+      <div class="h-full w-full relative">
+        <div class="w-full h-full absolute">
+          <svg class="w-full h-full">
+            <g>
+              <line
+                  v-for="line in lines"
+                  :key="line.id"
+                  :x1="line.x1"
+                  :y1="line.y1"
+                  :x2="line.x2"
+                  :y2="line.y2"
+                  :stroke="line.color"
+                  :stroke-width="line.cizgiGenisligi"
+                  stroke-linecap="round"
+              />
+            </g>
+          </svg>
         </div>
+        <img
+            draggable="false"
+            class="lg:h-full relative border-2 border-black rounded-lg object-contain"
+            :src="sayfaAc"
+            alt=""
+        />
       </div>
     </div>
-    <div class="fixed top-0 w-full sideAnimation overflow-scroll h-fit">
-      <div class="fixed left-0 top-0 h-screen flex flex-col">
-        <div @mousemove="sideBar=true" class="w-[30px] h-full absolute left-0 top-0"></div>
-        <div v-if="sideBar"
-             @mouseleave="sideBar=false"
-             class="p-4 bg-white shadow-xl rounded-r-xl transition-all duration-300 ease-in-out w-64 flex flex-col flex-grow">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold">Kontrol Paneli</h2>
-            <button @click="sideBar = false" class="text-gray-500 hover:text-gray-700">
-              <i class="fas fa-times"></i>
+
+    <div class="fixed bottom-3 w-full flex justify-center gap-2">
+      <button @click="sayfaNo++" class="px-6 py-2 backdrop-blur-md rounded-lg border shadow-md shadow-gray">Sonraki Sayfa</button>
+      <button @click="sayfaNo--" class="px-6 py-2 backdrop-blur-md rounded-lg border shadow-md shadow-gray">Önceki Sayfa</button>
+    </div>
+
+    <!-- Kontrol Paneli -->
+    <!-- Sol Kontrol Paneli -->
+    <div class="fixed left-0 top-0 h-screen flex">
+      <!-- Paneli açmak için dar tetikleyici alan -->
+      <div @mousemove="controlPanel = true" class="w-[20px] h-full absolute left top-0 z-40"></div>
+
+      <transition name="slide">
+        <div
+            v-if="controlPanel"
+            @mouseleave="controlPanel = false"
+            class="w-72 h-[95vh] mt-2.5 bg-white/95 backdrop-blur-sm shadow-2xl rounded-r-xl p-6 border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out"
+        >
+          <!-- Renk Paleti Bölümü -->
+          <div class="mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Renk Paleti</h3>
+            <div class="grid grid-cols-4 gap-4">
+              <button
+                  v-for="renk in renkler"
+                  :key="renk"
+                  @click="secilenRenk = renk"
+                  class="h-10 w-10 rounded-md border-2 transition transform hover:scale-110"
+                  :class="secilenRenk === renk ? 'border-blue-500' : 'border-gray-300'"
+                  :style="{ backgroundColor: renk }"
+              >
+                <svg
+                    v-if="secilenRenk === renk"
+                    class="w-5 h-5 mx-auto text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Çizgi Kalınlığı Bölümü -->
+          <div class="mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-3">Çizgi Kalınlığı</h3>
+            <div class="relative">
+              <input
+                  type="range"
+                  min="5"
+                  max="50"
+                  v-model="cizgiGenisligi"
+                  class="w-full h-2 bg-gray-300 rounded-lg appearance-none accent-blue-600"
+              />
+              <div class="flex justify-between text-sm text-gray-500 mt-2">
+                <span>İnce</span>
+                <span>Kalın</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aksiyon Butonları -->
+          <div class="mt-auto space-y-4">
+            <button
+                @click="temizle()"
+                class="w-full py-2 px-4 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors"
+            >
+              Temizle
+            </button>
+            <button
+                @click="isDelete = !isDelete"
+                class="w-full py-2 px-4 rounded-md transition-colors font-semibold"
+                :class="isDelete ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'"
+            >
+              {{ isDelete ? 'Silme Modu Aktif' : 'Silme Modunu Aç' }}
+            </button>
+            <button
+                class="w-full py-2 px-4 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors"
+            >
+              Yeni Not Ekle
             </button>
           </div>
+        </div>
+      </transition>
+    </div>
 
-          <div class="space-y-3 flex-grow">
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Eser</label>
-              <div class="relative">
-                <button @click="eserListesi = !eserListesi"
-                        class="w-full border border-gray-300 rounded-lg p-2.5 text-left">
-                  {{ eser  }}
-                </button>
-                <div v-if="eserListesi"
-                     class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-md overflow-y-auto max-h-32">
-                  <button v-for="e in eserler" :key="e"
-                          @click="eser=e, eserListesi = false"
-                          class="w-full text-left py-2 px-3 hover:bg-gray-100">
-                    {{ e }}
-                  </button>
-                </div>
+    <!-- Sağ Sidebar -->
+    <div class="fixed top-0 w-full sideAnimation h-fit">
+      <div class="fixed top-0 right-0 h-screen z-50 flex">
+        <div @mousemove="sideBar = true" class="w-[20px] h-full absolute right-0 top-0 z-40"></div>
+        <transition name="slide-right">
+          <div
+              v-if="sideBar"
+              @mouseleave="sideBar = false"
+              class="w-72 h-[95vh] mt-2.5 bg-white shadow-2xl rounded-l-2xl border border-gray-100 flex flex-col overflow-hidden"
+          >
+            <div class="p-4 pb-0">
+              <h3 class="text-lg font-bold text-gray-800 mb-4">Eser Listesi</h3>
+
+              <!-- Sayfa Numarası Girişi -->
+              <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Sayfa Numarası</label>
+                <input
+                    type="number"
+                    v-model="sayfaNo"
+                    :max="maxPages[eser] || ''"
+                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    placeholder="Sayfa numarası girin..."
+                />
+
               </div>
             </div>
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Sayfa</label>
-              <input type="number" v-model="sayfaNo" class="w-full border border-gray-300 rounded-lg p-2.5"
-                     placeholder="Sayfa No">
-            </div>
+            <!-- Eser Listesi -->
+            <div class="flex-1 overflow-y-auto px-4">
+              <div v-for="(item, index) in data" :key="index" class="group relative mb-2">
+                <button
+                    @click="toggleEser(index); handleEserClick(item, index); eser = item.madde.eser; bolumSec(true, item)"
+                    class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-blue-50 rounded-xl transition-colors duration-200"
+                >
+                  <span class="text-sm font-medium text-gray-700 group-hover:text-blue-600">{{ item.baslik }}</span>
+                  <svg
+                      class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-transform"
+                      :class="{ 'rotate-180': openEserIndices.includes(index) }"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+              </button>
 
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Renk</label>
-              <div class="flex flex-wrap gap-2">
-                <button v-for="renk in renkler" :key="renk" @click="secilenRenk = renk"
-                        :style="{ background: renk, height:'30px', width:'30px', borderRadius: '4px' }"
-                        :class="{'border-4 border-white': secilenRenk === renk, 'border border-gray-300': secilenRenk !== renk}"></button>
+                <!-- Alt Madde Listesi -->
+                <transition name="expand">
+                  <div v-if="openEserIndices.includes(index)" class="ml-4 mt-2 border-l-2 border-gray-200 pl-3">
+                    <button
+                        v-for="(madde, idx) in item.madde || []"
+                        :key="idx"
+                        @click="(eserListesi = false, bolumListesiBool = false, eser = madde.eser, sayfaNo = madde.sayfa, selectedMadde = madde)"
+                        class="w-full flex items-center p-2.5 mb-1 text-sm rounded-lg transition-colors duration-200"
+                        :class="selectedMadde === madde
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'hover:bg-gray-100 text-gray-600'"
+                    >
+                      <span class="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+                      {{ madde.bolum }}
+                    </button>
+                  </div>
+                </transition>
               </div>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium text-gray-700">Çizgi Kalınlığı</label>
-              <input type="range" min="5" max="50" v-model="cizgiGenisligi"
-                     class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
-              <div class="text-sm text-gray-600 text-center">{{ cizgiGenisligi }}px</div>
-            </div>
-
-            <div class="flex flex-col gap-2">
-              <button @click="git()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg">
-                <i class="fas fa-arrow-right mr-2"></i> Git
-              </button>
-              <button @click="temizle()"
-                      class="bg-red-500 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg">
-                <i class="fas fa-trash mr-2"></i> Temizle
-              </button>
-              <button @click="isDraw = !isDraw"
-                      class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg">
-                <i class="fas fa-pencil-alt mr-2"></i> {{ isDraw ? 'Çizimi Kapat' : 'Çizimi Aç' }}
-              </button>
             </div>
           </div>
-        </div>
-
+        </transition>
       </div>
     </div>
   </div>
 </template>
 
 <style>
-
 * {
   cursor: none;
 }
 
-button {
-  cursor: none;
-}
-
-#circularcursor {
-  background-color: transparent;
-  border: 2px solid black;
-  border-radius: 50%;
-  position: fixed;
-  z-index: 1000; /* Kaybolmasını önlemek için yüksek bir z-index ver */
-  pointer-events: none; /* Tıklamaların bu elemana gelmesini engeller */
-}
-
-
-@keyframes animate {
-  0% {
-    opacity: 0;
-    transform: translateY(-100%);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-* {
-  user-select: none;
-}
-
-.sideAnimation {
-  animation: animate 0.5s ease-in-out;
-}
-
-
-line:hover {
-  stroke-opacity: 0.5; /* Üzerine gelindiğinde opasiteyi değiştir */
-  cursor: pointer; /* Tıklanabilir göstermek için */
-}
-
-/* Dokunma davranışını engelleme */
 img {
   touch-action: none;
   -webkit-user-drag: none;
-  user-select: none;
 }
 
-/* Kalem için optimize cursor */
-#circularcursor {
-  display: none; /* Tablette cursor'ı gizle */
-}
-
-/* Tablet için optimize edilmiş çizim alanı */
 @media (pointer: coarse) {
   .touch-none {
     touch-action: none;
     -webkit-touch-callout: none;
   }
+}
 
-  line {
-    pointer-events: none;
+.sideAnimation {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
   }
 }
-</style>
 
+line {
+  pointer-events: visibleStroke;
+}
+
+@media (pointer: coarse) {
+  .touch-none {
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: default;
+  }
+}
+
+/* Animasyonlar */
+.slide-enter-active, .slide-leave-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-enter-from, .slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.slide-right-enter-active, .slide-right-leave-active {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-right-enter-from, .slide-right-leave-to {
+  transform: translateX(100%);
+}
+
+.expand-enter-active, .expand-leave-active {
+  transition: all 0.3s ease;
+  max-height: 500px;
+}
+
+.expand-enter-from, .expand-leave-to {
+  opacity: 0;
+  max-height: 0;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>
