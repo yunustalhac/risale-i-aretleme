@@ -2,82 +2,56 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from '#imports'
 
-// ------------------------------------------------
-// Router, Route ve API'den Veri Çekme
-// ------------------------------------------------
+// ===== Değişkenler =====
 const route = useRoute()
 const router = useRouter()
 const { data, error } = await useFetch('/api/data')
 
-// ------------------------------------------------
-// Sabitler ve Reactive Değişkenler
-// ------------------------------------------------
-const renkler = [
-  "black", "red", "yellow", "blue", "green", "lime",
-  "orange", "gray", "cyan", "pink", "maroon", "magenta",
-  "teal", "brown", "silver", "gold"
-]
-
 const controlPanel = ref(false)
 const sideBar = ref(false)
-
 const eser = ref(route.query.eser || "mektubat")
+const _sayfaNo = ref(Math.max(1, Number(route.query.sayfa) || 1))
+const sayfaAc = ref("")
+const secilenRenk = ref("#FFD700")
+const cizgiGenisligi = ref(7)
+const isDelete = ref(false)
 
-// Maksimum sayfa değerlerini tanımlayın:
+// Yeni: Eraser yarıçapı (silgi hassasiyeti)
+const eraserRadius = ref(20)
+
+const lines = ref([])         // Çizim sırasında oluşturulan line segmentleri
+const drawing = ref(false)      // Çizim modunun aktif olup olmadığını belirler
+const lastPoint = ref(null)     // Serbest çizimde son nokta
+
+const renkler = [
+  "#000000", "#4A4A4A", "#FF6347", "#FFA500", "#FFD700",
+  "#1E90FF", "#32CD32", "#2E8B57", "#800080", "#FFC0CB",
+  "#B0C4DE", "#D3D3D3", "#8B4513", "#F5F5DC", "#FFFFFF",
+  "#708090"
+]
+
 const maxPages = {
-  "sozler": 379,
-  "lemalar": 419,
-  "sualar": 628,
-  "mektubat": 515,
-  "siracun-nur": 309,
-  "zulfikar": 375,
-  "asa-yi-musa": 318,
-  "tilsimlar": 164,
-  "isaratul-i-caz": 284,
-  "mesnevi-i-nuriye": 294,
-  "sikke-i-tasdik-i-gaybi": 248,
-  "barla-lahikasi": 368,
-  "kastamonu-lahikasi": 343,
-  "emirdag-lahikasi-1": 464,
-  "emirdag-lahikasi-2": 475,
-  "emirdag-lahikasi-3": 460,
-  "emirdag-lahikasi-4": 562,
-  "bes-risale": 95,
-  "hanimlar-rehberi": 162,
+  "sozler": 379, "lemalar": 419, "sualar": 628, "mektubat": 515,
+  "siracun-nur": 309, "zulfikar": 375, "asa-yi-musa": 318,
+  "tilsimlar": 164, "isaratul-i-caz": 284, "mesnevi-i-nuriye": 294,
+  "sikke-i-tasdik-i-gaybi": 248, "barla-lahikasi": 368, "kastamonu-lahikasi": 343,
+  "emirdag-lahikasi-1": 464, "emirdag-lahikasi-2": 475, "emirdag-lahikasi-3": 460,
+  "emirdag-lahikasi-4": 562, "bes-risale": 95, "hanimlar-rehberi": 162,
   "genclik-rehberi": 84
 }
 
-// Sayfa numarasını, minimum 1 olacak şekilde ayarla:
-const _sayfaNo = ref(Math.max(1, Number(route.query.sayfa) || 1));
-
-// Computed property kullanarak setter'da değeri sınırla:
 const sayfaNo = computed({
-  get() {
-    return _sayfaNo.value;
-  },
+  get() { return _sayfaNo.value },
   set(value) {
-    // Seçili esere ait maksimum sayfa değeri; eğer bulunamazsa Infinity kullanılır.
-    const maxPage = maxPages[eser.value] || Infinity;
-    // Değeri 1 ile maxPage arasında sınırla:
-    _sayfaNo.value = Math.max(1, Math.min(maxPage, value));
+    const maxPage = maxPages[eser.value] || Infinity
+    _sayfaNo.value = Math.max(1, Math.min(maxPage, value))
   }
-});
+})
 
-const sayfaAc = ref("")
-
-const secilenRenk = ref("gold")
-const cizgiGenisligi = ref(7)
-const lines = ref([])
 const isDraw = ref(true)
-const isDrawing = ref(false)
-let x1 = null
-let y1 = null
-
-const isDelete = ref(false)
-let isPenActive = false
 const requestRef = ref()
 
-// Sidebar ve Eser Listesi ile ilgili reactive değişkenler
+// Diğer sidebar vb. değişkenler
 const eserListesi = ref(false)
 const bolumListesiBool = ref(false)
 const maddeVeri = ref([])
@@ -85,36 +59,20 @@ const selectedEserIndex = ref(null)
 const selectedMadde = ref(null)
 const openEserIndices = ref([])
 
-// ------------------------------------------------
-// Yardımcı Fonksiyonlar
-// ------------------------------------------------
+// ===== LocalStorage İşlemleri =====
+// LocalStorage anahtarını oluşturuyoruz (eser-sayfa bazlı)
 const localStorageKey = () => `${eser.value}-${sayfaNo.value}-lines`
 
-const defaultSayfa = async () => {
-  const eserVal = route.query.eser || "mektubat"
-  const sayfaVal = route.query.sayfa || 1
-
-  if (!route.query.eser || !route.query.sayfa) {
-    await router.push({ query: { eser: eserVal, sayfa: sayfaVal } })
+// Çizim detaylarını (eser, sayfa, renk, kalınlık, line segmentleri) kaydeder
+function saveToLocalStorage() {
+  const drawingData = {
+    eser: eser.value,
+    sayfa: sayfaNo.value,
+    secilenRenk: secilenRenk.value,
+    cizgiGenisligi: cizgiGenisligi.value,
+    lines: lines.value
   }
-
-  const paddedSayfa = String(sayfaVal).padStart(3, '0')
-  sayfaAc.value = `https://oku.risale.online/images/risale/${eserVal}/${paddedSayfa}.png`
-  return sayfaAc.value
-}
-
-const git = async () => {
-  const loadingIndicator = useLoadingIndicator()
-  loadingIndicator.start()
-
-  await router.push({ query: { eser: eser.value, sayfa: sayfaNo.value } })
-  const paddedSayfa = String(sayfaNo.value).padStart(3, '0')
-  sayfaAc.value = `https://oku.risale.online/images/risale/${eser.value}/${paddedSayfa}.png`
-
-  const storedLines = localStorage.getItem(localStorageKey())
-  lines.value = storedLines ? JSON.parse(storedLines) : []
-
-  setTimeout(() => loadingIndicator.finish(), 1500)
+  localStorage.setItem(localStorageKey(), JSON.stringify(drawingData))
 }
 
 const temizle = () => {
@@ -122,72 +80,156 @@ const temizle = () => {
   localStorage.removeItem(localStorageKey())
 }
 
-// ------------------------------------------------
-// Çizim ve Silme İşlemleri
-// ------------------------------------------------
-const startDrawing = (event) => {
-  if (!isDraw.value || event.pointerType !== 'pen') return
+// ===== Çizim ve Silgi Fonksiyonları =====
 
-  event.preventDefault()
-  const rect = event.target.getBoundingClientRect()
-  x1 = event.clientX - rect.left
-  y1 = event.clientY - rect.top
-  isDrawing.value = true
-  isPenActive = true
+// Free-hand çizim fonksiyonları (line segmentler olarak)
+function startDrawing(e) {
+  // Eğer silgi modu aktifse, çizim yapmadan eraser fonksiyonunu kullan
+  if (isDelete.value) {
+    eraseAt(e)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    return
+  }
+  const rect = e.currentTarget.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  drawing.value = true
+  lastPoint.value = { x, y }
+  e.currentTarget.setPointerCapture(e.pointerId)
 }
 
-const draw = (event) => {
-  if (isDelete.value || !isDrawing.value || !isPenActive || event.pointerType !== 'pen') return
-
-  event.preventDefault()
-  const rect = event.target.getBoundingClientRect()
-  const x2 = event.clientX - rect.left
-  const y2 = event.clientY - rect.top
-
+function continueDrawing(e) {
+  if (isDelete.value) {
+    eraseAt(e)
+    return
+  }
+  if (!drawing.value) return
+  const rect = e.currentTarget.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  const newPoint = { x, y }
+  // Yeni line segment: son nokta ile yeni gelen nokta arasında
   lines.value.push({
-    id: Date.now(),
-    x1: x1,
-    y1: y1,
-    x2: x2,
-    y2: y2,
+    id: Date.now() + Math.random(),
     color: secilenRenk.value,
-    cizgiGenisligi: cizgiGenisligi.value,
-    eserim: eser.value,
-    sayfam: sayfaNo.value
+    width: cizgiGenisligi.value,
+    x1: lastPoint.value.x,
+    y1: lastPoint.value.y,
+    x2: newPoint.x,
+    y2: newPoint.y
   })
-
-  localStorage.setItem(localStorageKey(), JSON.stringify(lines.value))
-  x1 = x2
-  y1 = y2
+  lastPoint.value = newPoint
+  saveToLocalStorage()
 }
 
-const stopDrawing = () => {
-  isDrawing.value = false
-  isPenActive = false
+function endDrawing(e) {
+  if (isDelete.value) {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    return
+  }
+  if (!drawing.value) return
+  drawing.value = false
+  lastPoint.value = null
+  e.currentTarget.releasePointerCapture(e.pointerId)
 }
 
-const deleteLine = (event) => {
-  if (!isDelete.value || event.pointerType !== 'pen') return
-
-  const rect = event.target.getBoundingClientRect()
-  const x = event.clientX - rect.left
-  const y = event.clientY - rect.top
-
-  const closestLine = lines.value.find(line => {
-    const distanceStart = Math.hypot(line.x1 - x, line.y1 - y)
-    const distanceEnd = Math.hypot(line.x2 - x, line.y2 - y)
-    return Math.min(distanceStart, distanceEnd) < cizgiGenisligi.value * 2
-  })
-
-  if (closestLine) {
-    lines.value = lines.value.filter(line => line.id !== closestLine.id)
-    localStorage.setItem(localStorageKey(), JSON.stringify(lines.value))
+// Geliştirilmiş Silgi Fonksiyonu: Belirlenen eraserRadius içinde kalan tüm line segmentlerini siler
+function eraseAt(e) {
+  try {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    let removed = false
+    lines.value = lines.value.filter(line => {
+      const dStart = Math.hypot(line.x1 - x, line.y1 - y)
+      const dEnd = Math.hypot(line.x2 - x, line.y2 - y)
+      const d = Math.min(dStart, dEnd)
+      if (d < eraserRadius.value) {
+        removed = true
+        return false
+      }
+      return true
+    })
+    if (removed) saveToLocalStorage()
+  } catch (error) {
+    console.error("Erase işlemi sırasında hata oluştu:", error)
   }
 }
 
-// ------------------------------------------------
-// Eser ve Bölüm Seçim Fonksiyonları
-// ------------------------------------------------
+// Pointer event handler'ları: Silgi veya çizim moduna göre yönlendirir
+function pointerDown(e) {
+  if (isDelete.value) {
+    eraseAt(e)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    return
+  }
+  startDrawing(e)
+}
+
+function pointerMove(e) {
+  if (isDelete.value) {
+    eraseAt(e)
+    return
+  }
+  continueDrawing(e)
+}
+
+function pointerUp(e) {
+  if (isDelete.value) {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    return
+  }
+  endDrawing(e)
+}
+
+// ===== Sayfa İşlemleri =====
+const defaultSayfa = async () => {
+  const eserVal = route.query.eser || "mektubat"
+  const sayfaVal = route.query.sayfa || 1
+  if (!route.query.eser || !route.query.sayfa) {
+    await router.replace({ query: { eser: eserVal, sayfa: sayfaVal } })
+  }
+  const paddedSayfa = String(sayfaVal).padStart(3, '0')
+  sayfaAc.value = `https://oku.risale.online/images/risale/${eserVal}/${paddedSayfa}.png`
+  return sayfaAc.value
+}
+
+const git = async () => {
+  const paddedSayfa = String(sayfaNo.value).padStart(3, '0')
+  sayfaAc.value = `https://oku.risale.online/images/risale/${eser.value}/${paddedSayfa}.png`
+  const storedData = localStorage.getItem(localStorageKey())
+  if (storedData) {
+    const parsedData = JSON.parse(storedData)
+    lines.value = parsedData.lines || []
+    secilenRenk.value = parsedData.secilenRenk || secilenRenk.value
+    cizgiGenisligi.value = parsedData.cizgiGenisligi || cizgiGenisligi.value
+  } else {
+    lines.value = []
+  }
+  await router.replace({ query: { eser: eser.value, sayfa: sayfaNo.value } })
+  const currentUrl = `https://oku.risale.online/images/risale/${eser.value}/${paddedSayfa}.png`
+  sayfaAc.value = currentUrl
+  const prevPage = sayfaNo.value - 1
+  const nextPage = sayfaNo.value + 1
+  const maxPage = maxPages[eser.value] || Infinity
+  if (prevPage >= 1) {
+    const paddedPrev = String(prevPage).padStart(3, '0')
+    const prevUrl = `https://oku.risale.online/images/risale/${eser.value}/${paddedPrev}.png`
+    const imgPrev = new Image()
+    imgPrev.src = prevUrl
+    console.log(`Ön yüklenen önceki sayfa: ${prevUrl}`)
+  }
+  if (nextPage <= maxPage) {
+    const paddedNext = String(nextPage).padStart(3, '0')
+    const nextUrl = `https://oku.risale.online/images/risale/${eser.value}/${paddedNext}.png`
+    const imgNext = new Image()
+    imgNext.src = nextUrl
+    console.log(`Ön yüklenen sonraki sayfa: ${nextUrl}`)
+  }
+  router.replace({ query: { eser: eser.value, sayfa: sayfaNo.value } })
+}
+
+// ===== Eser Listesi ve Diğer Yardımcı Fonksiyonlar =====
 function handleEserClick(item, index) {
   selectedEserIndex.value = index
   bolumSec(true, item)
@@ -206,27 +248,27 @@ function toggleEser(index) {
   }
 }
 
-// ------------------------------------------------
-// Eser değişiminde sayfa numarasını kontrol et
-// ------------------------------------------------
+/* ===== Watch and Lifecycle Hooks ===== */
 watch(eser, (newEser) => {
-  const maxPage = maxPages[newEser] || Infinity;
-  if (_sayfaNo.value > maxPage) {
-    _sayfaNo.value = maxPage;
-  }
-});
+  const maxPage = maxPages[newEser] || Infinity
+  if (_sayfaNo.value > maxPage) _sayfaNo.value = maxPage
+})
 
-// ------------------------------------------------
-// Watcher'lar ve Lifecycle Hook'lar
-// ------------------------------------------------
 watch([sayfaNo], () => git())
 
 watch(isDelete, (newVal) => {
-  isDraw.value = !newVal
+  // İsteğe bağlı: isDelete değiştiğinde yapılacak ek işlemler
 })
 
 onMounted(() => {
   git()
+  const storedData = localStorage.getItem(localStorageKey())
+  if (storedData) {
+    const parsedData = JSON.parse(storedData)
+    lines.value = parsedData.lines || []
+    secilenRenk.value = parsedData.secilenRenk || secilenRenk.value
+    cizgiGenisligi.value = parsedData.cizgiGenisligi || cizgiGenisligi.value
+  }
   defaultSayfa()
 })
 
@@ -234,7 +276,6 @@ onBeforeUnmount(() => {
   if (requestRef.value) cancelAnimationFrame(requestRef.value)
 })
 </script>
-
 
 <template>
   <div class="flex flex-col">
@@ -244,37 +285,32 @@ onBeforeUnmount(() => {
 
     <!-- Çizim Alanı -->
     <div
-        @pointerdown="isDelete ? deleteLine($event) : startDrawing($event)"
-        @pointerup="stopDrawing"
-        @pointermove="isDelete ? deleteLine($event) : draw($event)"
-        @pointercancel="stopDrawing"
-        class="relative touch-none overflow-scroll"
+        class="relative touch-none overflow-hidden"
+        @pointerdown="pointerDown"
+        @pointermove="pointerMove"
+        @pointerup="pointerUp"
+        @pointercancel="pointerUp"
     >
-      <div class="h-full w-full relative">
-        <div class="w-full h-full absolute">
-          <svg class="w-full h-full">
-            <g>
-              <line
-                  v-for="line in lines"
-                  :key="line.id"
-                  :x1="line.x1"
-                  :y1="line.y1"
-                  :x2="line.x2"
-                  :y2="line.y2"
-                  :stroke="line.color"
-                  :stroke-width="line.cizgiGenisligi"
-                  stroke-linecap="round"
-              />
-            </g>
-          </svg>
-        </div>
-        <img
-            draggable="false"
-            class="lg:h-full relative border-2 border-black rounded-lg object-contain"
-            :src="sayfaAc"
-            alt=""
+      <svg class="absolute w-full h-full">
+        <!-- Çizilen line segmentleri -->
+        <line
+            v-for="line in lines"
+            :key="line.id"
+            :x1="line.x1"
+            :y1="line.y1"
+            :x2="line.x2"
+            :y2="line.y2"
+            :stroke="line.color"
+            :stroke-width="line.width"
+            stroke-linecap="round"
         />
-      </div>
+      </svg>
+      <img
+          draggable="false"
+          class="relative border-2 border-black rounded-lg object-contain"
+          :src="sayfaAc"
+          alt=""
+      />
     </div>
 
     <div class="fixed bottom-3 w-full flex justify-center gap-2">
@@ -283,11 +319,9 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Kontrol Paneli -->
-    <!-- Sol Kontrol Paneli -->
     <div class="fixed left-0 top-0 h-screen flex">
       <!-- Paneli açmak için dar tetikleyici alan -->
       <div @mousemove="controlPanel = true" class="w-[20px] h-full absolute left top-0 z-40"></div>
-
       <transition name="slide">
         <div
             v-if="controlPanel"
@@ -374,8 +408,6 @@ onBeforeUnmount(() => {
           >
             <div class="p-4 pb-0">
               <h3 class="text-lg font-bold text-gray-800 mb-4">Eser Listesi</h3>
-
-              <!-- Sayfa Numarası Girişi -->
               <div class="mb-6">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Sayfa Numarası</label>
                 <input
@@ -385,11 +417,8 @@ onBeforeUnmount(() => {
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     placeholder="Sayfa numarası girin..."
                 />
-
               </div>
             </div>
-
-            <!-- Eser Listesi -->
             <div class="flex-1 overflow-y-auto px-4">
               <div v-for="(item, index) in data" :key="index" class="group relative mb-2">
                 <button
@@ -406,9 +435,7 @@ onBeforeUnmount(() => {
                   >
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                   </svg>
-              </button>
-
-                <!-- Alt Madde Listesi -->
+                </button>
                 <transition name="expand">
                   <div v-if="openEserIndices.includes(index)" class="ml-4 mt-2 border-l-2 border-gray-200 pl-3">
                     <button
@@ -416,9 +443,7 @@ onBeforeUnmount(() => {
                         :key="idx"
                         @click="(eserListesi = false, bolumListesiBool = false, eser = madde.eser, sayfaNo = madde.sayfa, selectedMadde = madde)"
                         class="w-full flex items-center p-2.5 mb-1 text-sm rounded-lg transition-colors duration-200"
-                        :class="selectedMadde === madde
-                  ? 'bg-blue-100 text-blue-600'
-                  : 'hover:bg-gray-100 text-gray-600'"
+                        :class="selectedMadde === madde ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'"
                     >
                       <span class="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
                       {{ madde.bolum }}
@@ -435,10 +460,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-* {
-  cursor: none;
-}
-
 img {
   touch-action: none;
   -webkit-user-drag: none;
