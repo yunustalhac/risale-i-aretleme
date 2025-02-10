@@ -162,9 +162,6 @@ const noteText = ref("")               // Modal içindeki not metni
 const notePriority = ref("low")        // Önem derecesi (low, medium, high)
 const notes = ref([])                  // Oluşturulan notların listesi
 
-// Yeni: Silme onay modalı için not id'sini tutan değişken
-const noteToDelete = ref(null)
-
 // Çizilen not kutusunun canlı önizlemesi
 const currentNoteBox = computed(() => {
   if (!noteBoxStart.value || !noteBoxEnd.value) return null
@@ -186,11 +183,11 @@ function saveNote() {
   const box = currentNoteBox.value
   if (!box) return
 
-  // Yeni öncelik renkleri: low -> Turkuaz, medium -> Turuncu, high -> Mor
+  // Yeni öncelik renkleri: low -> Mavi, medium -> Kırmızı, high -> Yeşil
   const priorityColors = {
-    low: "#1abc9c",
-    medium: "#f39c12",
-    high: "#9b59b6"
+    low: "#3498db",    // Mavi
+    medium: "#e74c3c", // Kırmızı
+    high: "#2ecc71"    // Yeşil
   }
 
   const newNote = {
@@ -245,24 +242,6 @@ function loadNotes() {
 
 function saveNotesToLocalStorage() {
   localStorage.setItem(`${eser.value}-${sayfaNo.value}-notes`, JSON.stringify(notes.value))
-}
-
-// ─────────────────────────────────────────────
-// SİLME ONAY MODALI İŞLEMLERİ
-// ─────────────────────────────────────────────
-function confirmDelete(noteId) {
-  noteToDelete.value = noteId
-}
-
-function deleteConfirmed() {
-  if (noteToDelete.value) {
-    deleteNote(noteToDelete.value)
-    noteToDelete.value = null
-  }
-}
-
-function cancelDelete() {
-  noteToDelete.value = null
 }
 
 // ─────────────────────────────────────────────
@@ -325,15 +304,8 @@ function pointerUp(e) {
 // DELETE NOTE (SİLME) FONKSİYONU
 // ─────────────────────────────────────────────
 function deleteNote(noteId) {
-  // 1. Notları filtrele (Silmek istediğimiz notu çıkar)
   notes.value = notes.value.filter(n => n.id !== noteId)
-
-  // 2. Eğer silinen not aktif not ise, aktif notu sıfırla
-  if (activeNote.value === noteId) {
-    activeNote.value = null
-  }
-
-  // 3. Güncellenen not listesini doğru anahtar ile localStorage'a kaydet
+  activeNote.value = null
   saveNotesToLocalStorage()
 }
 
@@ -391,7 +363,29 @@ watch(eser, (newEser) => {
   if (_sayfaNo.value > maxPage) _sayfaNo.value = maxPage
 })
 
-watch([sayfaNo], () => git())
+function handleEserClick(item, index) {
+  selectedEserIndex.value = index
+  bolumSec(true, item)
+}
+
+function bolumSec(bool, item) {
+  bolumListesiBool.value = bool
+  maddeVeri.value = item.madde || []
+}
+
+function toggleEser(index) {
+  if (openEserIndices.value.includes(index)) {
+    openEserIndices.value = openEserIndices.value.filter(i => i !== index)
+  } else {
+    openEserIndices.value.push(index)
+  }
+}
+
+
+watch([sayfaNo, eser], () => {
+  git()
+  loadNotes()
+})
 watch(isDelete, (newVal) => {})
 
 onMounted(() => {
@@ -415,11 +409,11 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col">
     <!-- Sol üstte örnek mavi panel -->
-    <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue"></div>
+    <div class="absolute left-0 top-0 h-1/2 w-[100px] bg-blue z-50"></div>
     <NuxtLoadingIndicator height="4" class="rounded-full"/>
 
     <!-- NOT GİRİŞ MODALI (Modal en üstte yer alır) -->
-    <div v-if="showNoteModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+    <div v-if="showNoteModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-20">
       <div class="bg-white p-6 rounded-2xl shadow-lg w-1/2">
         <h2 class="text-xl font-semibold mb-4">Not Ekle</h2>
         <div class="mb-4">
@@ -456,22 +450,6 @@ onBeforeUnmount(() => {
               class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
           >
             Kaydet
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Silme Onay Modalı (Overlay) -->
-    <div v-if="noteToDelete" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div class="bg-white p-6 rounded-xl shadow-xl max-w-sm w-full">
-        <h2 class="text-xl font-bold mb-4">Silme Onayı</h2>
-        <p class="mb-6">Silmek istediğinize emin misiniz?</p>
-        <div class="flex justify-end space-x-2">
-          <button @click="cancelDelete" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">
-            Vazgeç
-          </button>
-          <button @click="deleteConfirmed" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition">
-            Sil
           </button>
         </div>
       </div>
@@ -525,14 +503,16 @@ onBeforeUnmount(() => {
         <!-- Modern overlay kart (hover ile) -->
         <div class="note-overlay">
           <span>{{ note.text }}</span>
+          
           <button
               @pointerdown.stop
-              @click.stop="confirmDelete(note.id)"
+              @click.stop="deleteNote(note.id)"
               class="delete-btn"
               title="Notu Sil"
           >
             &times;
           </button>
+
         </div>
       </div>
 
@@ -554,7 +534,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Sol Kontrol Paneli -->
-    <div class="fixed left-0 top-0 h-screen flex">
+    <div class="fixed left-0 top-0 h-screen flex z-50 ">
       <div @mousemove="controlPanel = true" class="w-[20px] h-full absolute left top-0 z-40"></div>
       <transition name="slide">
         <div v-if="controlPanel"
@@ -594,17 +574,17 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="mt-auto space-y-4">
-            <button @click="temizle()"
+            <button @click="temizle();; controlPanel=false"
                     class="w-full py-2 px-4 rounded-md bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors">
               Temizle
             </button>
-            <button @click="isDelete = !isDelete"
+            <button @click="isDelete = !isDelete, controlPanel=false"
                     class="w-full py-2 px-4 rounded-md transition-colors font-semibold"
                     :class="isDelete ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'">
               {{ isDelete ? 'Silme Modu Aktif' : 'Silme Modunu Aç' }}
             </button>
             <button
-                @click="activateNoteCreation"
+                @click="activateNoteCreation(); controlPanel = false"
                 class="w-full py-2 px-4 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-semibold transition-colors">
               Yeni Not Ekle
             </button>
@@ -614,7 +594,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Sağ Eser Listesi Paneli (Varsa) -->
-    <div class="fixed top-0 w-full sideAnimation h-fit">
+    <div class="fixed top-0 w-full sideAnimation h-fit z-50">
       <div class="fixed top-0 right-0 h-screen z-50 flex">
         <div @mousemove="sideBar = true" class="w-[20px] h-full absolute right-0 top-0 z-40"></div>
         <transition name="slide-right">
@@ -635,7 +615,7 @@ onBeforeUnmount(() => {
             <div class="flex-1 overflow-y-auto px-4">
               <div v-for="(item, index) in data" :key="index" class="group relative mb-2">
                 <button
-                    @click="toggleEser(index); handleEserClick(item, index); eser = item.madde.eser; bolumSec(true, item)"
+                    @click="toggleEser(index); handleEserClick(item, index);  bolumSec(true, item)"
                     class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-blue-50 rounded-xl transition-colors duration-200">
                   <span class="text-sm font-medium text-gray-700 group-hover:text-blue-600">{{ item.baslik }}</span>
                   <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-transform"
@@ -647,7 +627,7 @@ onBeforeUnmount(() => {
                 <transition name="expand">
                   <div v-if="openEserIndices.includes(index)" class="ml-4 mt-2 border-l-2 border-gray-200 pl-3">
                     <button v-for="(madde, idx) in item.madde || []" :key="idx"
-                            @click="(eserListesi = false, bolumListesiBool = false, eser = madde.eser, sayfaNo = madde.sayfa, selectedMadde = madde)"
+                            @click="(eserListesi = false,eser = item.madde.eser , bolumListesiBool = false, eser = madde.eser, sayfaNo = madde.sayfa, selectedMadde = madde , sideBar=false)"
                             class="w-full flex items-center p-2.5 mb-1 text-sm rounded-lg transition-colors duration-200"
                             :class="selectedMadde === madde ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-600'">
                       <span class="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
@@ -696,7 +676,7 @@ line {
 
 /* Yeni Not Modu Overlay: Yeni not ekleme modunda ekranı hafif karartır */
 .new-note-overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -711,7 +691,6 @@ line {
   position: absolute;
   z-index: 10;
   border-radius: 8px;
-  box-shadow: 0 0 5px lightblue;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .note-box:hover {
@@ -721,12 +700,12 @@ line {
 .note-box.disable-hover {
   pointer-events: none;
 }
-/* Seçili Not Vurgusu */
+/* Seçili Not Vurgusu
 .selected-note {
   border: 3px solid #f39c12 !important;
   box-shadow: 0 0 10px #f39c12;
 }
-
+            */
 /* Overlay Kart Modern Tasarımı */
 .note-overlay {
   position: absolute;
@@ -745,8 +724,8 @@ line {
   z-index: 20;
   font-size: 0.9rem;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-around;
 }
 .note-box:hover .note-overlay {
   opacity: 1;
